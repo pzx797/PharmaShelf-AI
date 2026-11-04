@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 MRS 5-fold cross-validation for YOLO11n vs MSA-YOLO11.
 
@@ -28,10 +27,11 @@ import random
 import shutil
 import statistics
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Sequence
 
 import yaml
 from sklearn.model_selection import KFold, train_test_split
+
 from ultralytics import YOLO
 
 PROJECT_ROOT = Path("/hy-tmp/ultralytics-main")
@@ -54,44 +54,44 @@ INNER_VAL_RATIO = 0.125
 STAGE1_EPOCHS = 50
 STAGE2_EPOCHS = 250
 
-COMMON_TRAIN_ARGS = dict(
-    workers=0,
-    imgsz=960,
-    batch=16,
-    device=0,
-    optimizer="SGD",
-    lr0=0.01,
-    lrf=0.01,
-    momentum=0.937,
-    weight_decay=0.0005,
-    warmup_epochs=3.0,
-    warmup_bias_lr=0.01,
-    cos_lr=False,
-    mosaic=1.0,
-    mixup=0.0,
-    copy_paste=0.0,
-    erasing=0.0,
-    degrees=5.0,
-    translate=0.05,
-    scale=0.15,
-    shear=0.0,
-    perspective=0.0,
-    fliplr=0.5,
-    flipud=0.0,
-    hsv_h=0.015,
-    hsv_s=0.4,
-    hsv_v=0.3,
-    close_mosaic=50,
-    patience=0,
-    pretrained=False,
-    deterministic=True,
-    plots=True,
-    save=True,
-    exist_ok=True,
-)
+COMMON_TRAIN_ARGS = {
+    "workers": 0,
+    "imgsz": 960,
+    "batch": 16,
+    "device": 0,
+    "optimizer": "SGD",
+    "lr0": 0.01,
+    "lrf": 0.01,
+    "momentum": 0.937,
+    "weight_decay": 0.0005,
+    "warmup_epochs": 3.0,
+    "warmup_bias_lr": 0.01,
+    "cos_lr": False,
+    "mosaic": 1.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "erasing": 0.0,
+    "degrees": 5.0,
+    "translate": 0.05,
+    "scale": 0.15,
+    "shear": 0.0,
+    "perspective": 0.0,
+    "fliplr": 0.5,
+    "flipud": 0.0,
+    "hsv_h": 0.015,
+    "hsv_s": 0.4,
+    "hsv_v": 0.3,
+    "close_mosaic": 50,
+    "patience": 0,
+    "pretrained": False,
+    "deterministic": True,
+    "plots": True,
+    "save": True,
+    "exist_ok": True,
+}
 
 
-def _as_list(value) -> List[str]:
+def _as_list(value) -> list[str]:
     if value is None:
         return []
     if isinstance(value, (list, tuple)):
@@ -116,7 +116,7 @@ def _resolve_split_source(source: str, dataset_root: Path) -> Path:
     return p.resolve()
 
 
-def _read_image_txt(txt_path: Path, dataset_root: Path) -> List[Path]:
+def _read_image_txt(txt_path: Path, dataset_root: Path) -> list[Path]:
     images = []
     with txt_path.open("r", encoding="utf-8-sig") as f:
         for line in f:
@@ -132,15 +132,11 @@ def _read_image_txt(txt_path: Path, dataset_root: Path) -> List[Path]:
     return images
 
 
-def _collect_images_from_source(source: str, dataset_root: Path) -> List[Path]:
+def _collect_images_from_source(source: str, dataset_root: Path) -> list[Path]:
     p = _resolve_split_source(source, dataset_root)
 
     if p.is_dir():
-        return sorted(
-            x.resolve()
-            for x in p.rglob("*")
-            if x.is_file() and x.suffix.lower() in IMAGE_SUFFIXES
-        )
+        return sorted(x.resolve() for x in p.rglob("*") if x.is_file() and x.suffix.lower() in IMAGE_SUFFIXES)
 
     if p.is_file() and p.suffix.lower() == ".txt":
         return _read_image_txt(p, dataset_root)
@@ -151,7 +147,7 @@ def _collect_images_from_source(source: str, dataset_root: Path) -> List[Path]:
     raise FileNotFoundError(f"Cannot resolve dataset source: {source}\nResolved: {p}")
 
 
-def collect_all_images(data_yaml: Path) -> Tuple[List[Path], dict]:
+def collect_all_images(data_yaml: Path) -> tuple[list[Path], dict]:
     if not data_yaml.is_file():
         raise FileNotFoundError(f"Dataset YAML not found: {data_yaml}")
 
@@ -160,7 +156,7 @@ def collect_all_images(data_yaml: Path) -> Tuple[List[Path], dict]:
 
     dataset_root = _resolve_dataset_root(cfg, data_yaml)
 
-    images: List[Path] = []
+    images: list[Path] = []
     for split_name in ("train", "val", "test"):
         for source in _as_list(cfg.get(split_name)):
             images.extend(_collect_images_from_source(source, dataset_root))
@@ -169,9 +165,7 @@ def collect_all_images(data_yaml: Path) -> Tuple[List[Path], dict]:
 
     missing = [p for p in unique if not p.is_file()]
     if missing:
-        raise FileNotFoundError(
-            "Some images do not exist:\n" + "\n".join(str(x) for x in missing[:20])
-        )
+        raise FileNotFoundError("Some images do not exist:\n" + "\n".join(str(x) for x in missing[:20]))
 
     return unique, cfg
 
@@ -180,9 +174,7 @@ def image_to_label_path(image_path: Path) -> Path:
     parts = list(image_path.parts)
     indices = [i for i, part in enumerate(parts) if part == "images"]
     if not indices:
-        raise RuntimeError(
-            f"Cannot infer label path because 'images' is not in:\n{image_path}"
-        )
+        raise RuntimeError(f"Cannot infer label path because 'images' is not in:\n{image_path}")
     idx = indices[-1]
     parts[idx] = "labels"
     return Path(*parts).with_suffix(".txt")
@@ -196,13 +188,8 @@ def validate_labels(images: Sequence[Path]) -> None:
             missing_labels.append((img, label))
 
     if missing_labels:
-        examples = "\n".join(
-            f"image: {img}\nlabel: {label}"
-            for img, label in missing_labels[:10]
-        )
-        raise FileNotFoundError(
-            f"{len(missing_labels)} images have no matching label.\n{examples}"
-        )
+        examples = "\n".join(f"image: {img}\nlabel: {label}" for img, label in missing_labels[:10])
+        raise FileNotFoundError(f"{len(missing_labels)} images have no matching label.\n{examples}")
 
 
 def write_path_list(paths: Sequence[Path], out_file: Path) -> None:
@@ -252,7 +239,7 @@ def build_five_folds(
     original_cfg: dict,
     seed: int,
     reset_splits: bool = False,
-) -> List[Path]:
+) -> list[Path]:
     if reset_splits and CV_SPLIT_ROOT.exists():
         shutil.rmtree(CV_SPLIT_ROOT)
 
@@ -262,7 +249,7 @@ def build_five_folds(
     indices = list(range(len(images)))
 
     outer = KFold(n_splits=N_SPLITS, shuffle=True, random_state=seed)
-    fold_yamls: List[Path] = []
+    fold_yamls: list[Path] = []
 
     for fold_no, (trainval_idx, test_idx) in enumerate(outer.split(indices), start=1):
         trainval_paths = [images[i] for i in trainval_idx]
@@ -285,10 +272,7 @@ def build_five_folds(
         )
         fold_yamls.append(fold_yaml)
 
-        print(
-            f"[Fold {fold_no}] train={len(train_paths)}, "
-            f"val={len(val_paths)}, test={len(test_paths)}"
-        )
+        print(f"[Fold {fold_no}] train={len(train_paths)}, val={len(val_paths)}, test={len(test_paths)}")
 
     return fold_yamls
 
@@ -296,8 +280,7 @@ def build_five_folds(
 def make_yolo11n_from_sku_checkpoint(weights: Path) -> YOLO:
     if not weights.is_file():
         raise FileNotFoundError(
-            f"YOLO11n SKU-110K checkpoint not found:\n{weights}\n"
-            "Use --yolo11n-weights /path/to/best.pt"
+            f"YOLO11n SKU-110K checkpoint not found:\n{weights}\nUse --yolo11n-weights /path/to/best.pt"
         )
     return YOLO(str(weights))
 
@@ -410,10 +393,7 @@ def train_one_fold(
     return result
 
 
-RESULT_FIELDS = [
-    "model", "fold", "seed", "precision", "recall",
-    "map50", "map50_95", "train_yaml", "best_pt"
-]
+RESULT_FIELDS = ["model", "fold", "seed", "precision", "recall", "map50", "map50_95", "train_yaml", "best_pt"]
 
 
 def save_fold_results(rows: Sequence[dict], out_csv: Path) -> None:
@@ -424,7 +404,7 @@ def save_fold_results(rows: Sequence[dict], out_csv: Path) -> None:
         writer.writerows(rows)
 
 
-def mean_sd_ci95(values: Sequence[float]) -> Tuple[float, float, float, float]:
+def mean_sd_ci95(values: Sequence[float]) -> tuple[float, float, float, float]:
     vals = list(map(float, values))
     n = len(vals)
     mean = statistics.mean(vals)
@@ -434,16 +414,14 @@ def mean_sd_ci95(values: Sequence[float]) -> Tuple[float, float, float, float]:
     return mean, sd, mean - margin, mean + margin
 
 
-def build_summary(rows: Sequence[dict]) -> List[dict]:
+def build_summary(rows: Sequence[dict]) -> list[dict]:
     summary_rows = []
     metrics = ["precision", "recall", "map50", "map50_95"]
 
     for model_name in ("YOLO11n", "MSA-YOLO11"):
         model_rows = [r for r in rows if r["model"] == model_name]
         if len(model_rows) != N_SPLITS:
-            raise RuntimeError(
-                f"{model_name}: expected {N_SPLITS} folds, got {len(model_rows)}"
-            )
+            raise RuntimeError(f"{model_name}: expected {N_SPLITS} folds, got {len(model_rows)}")
 
         for metric in metrics:
             values = [float(r[metric]) for r in model_rows]
@@ -464,10 +442,7 @@ def build_summary(rows: Sequence[dict]) -> List[dict]:
 
 
 def save_summary(rows: Sequence[dict], out_csv: Path) -> None:
-    fields = [
-        "model", "metric", "mean", "sd", "mean_plus_minus_sd",
-        "ci95_low", "ci95_high", "ci95"
-    ]
+    fields = ["model", "metric", "mean", "sd", "mean_plus_minus_sd", "ci95_low", "ci95_high", "ci95"]
     with out_csv.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -489,17 +464,11 @@ def print_summary(summary_rows: Sequence[dict]) -> None:
         print(f"\n{model_name}")
         for row in summary_rows:
             if row["model"] == model_name:
-                print(
-                    f"  {pretty[row['metric']]:<10} "
-                    f"{row['mean_plus_minus_sd']}  "
-                    f"95% CI {row['ci95']}"
-                )
+                print(f"  {pretty[row['metric']]:<10} {row['mean_plus_minus_sd']}  95% CI {row['ci95']}")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="5-fold CV: YOLO11n vs MSA-YOLO11 on MRSDataset"
-    )
+    parser = argparse.ArgumentParser(description="5-fold CV: YOLO11n vs MSA-YOLO11 on MRSDataset")
     parser.add_argument(
         "--yolo11n-weights",
         type=Path,
@@ -534,13 +503,9 @@ def main():
     if not MSA_MODEL_CFG.is_file():
         raise FileNotFoundError(f"MSA YAML not found: {MSA_MODEL_CFG}")
     if not args.yolo11n_weights.is_file():
-        raise FileNotFoundError(
-            f"YOLO11n SKU checkpoint not found: {args.yolo11n_weights}"
-        )
+        raise FileNotFoundError(f"YOLO11n SKU checkpoint not found: {args.yolo11n_weights}")
     if not args.msa_weights.is_file():
-        raise FileNotFoundError(
-            f"MSA SKU checkpoint not found: {args.msa_weights}"
-        )
+        raise FileNotFoundError(f"MSA SKU checkpoint not found: {args.msa_weights}")
 
     random.seed(args.seed)
 
@@ -548,9 +513,7 @@ def main():
     print(f"\nTotal unique images found: {len(all_images)}")
 
     if len(all_images) != EXPECTED_IMAGE_COUNT:
-        raise RuntimeError(
-            f"Expected {EXPECTED_IMAGE_COUNT} images, found {len(all_images)}."
-        )
+        raise RuntimeError(f"Expected {EXPECTED_IMAGE_COUNT} images, found {len(all_images)}.")
 
     validate_labels(all_images)
     print("All image-label pairs passed validation.")
@@ -571,7 +534,7 @@ def main():
         for idx, img in enumerate(all_images):
             writer.writerow([idx, str(img), str(image_to_label_path(img))])
 
-    all_results: List[dict] = []
+    all_results: list[dict] = []
 
     for model_name in ("YOLO11n", "MSA-YOLO11"):
         for fold_no, fold_yaml in enumerate(fold_yamls, start=1):
