@@ -26,8 +26,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-requirements.txt
-!examples/**/requirements.txt
 setup.py
 ultralytics.egg-info
 
@@ -203,3 +201,20 @@ calibration_*.npy
 # Training logs
 args.yaml
 results.csv
+
+# Local credentials (keep sanitized examples shareable)
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+
+# Project data and local experiment archives/backups
+/rag_knowledge_base/*.xlsx
+/qwen37plus_rag_experiment.zip
+/qwen37plus_direct_experiment/*_before_v*.py
+/outputs/rag_kb_ppt/*.txt
+/outputs/rag_kb_ppt/*.pptx
+/outputs/rag_kb_ppt/*.pdf
+/map_curve_plots/
+/topk_recall_plot/
