@@ -32,12 +32,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
 from ultralytics import YOLO
 
-
 DEFAULT_WEIGHTS = Path(
-    "/hy-tmp/ultralytics-main/runs/Fine-tune_MSA-YOLO_sku_to_mrs/"
-    "MSA_SKU_to_MRS_stage2_seed3/weights/best.pt"
+    "/hy-tmp/ultralytics-main/runs/Fine-tune_MSA-YOLO_sku_to_mrs/MSA_SKU_to_MRS_stage2_seed3/weights/best.pt"
 )
 
 DEFAULT_DATA = Path("/hy-tmp/ultralytics-main/MRSDataset.yaml")
@@ -52,7 +51,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"Dataset yaml not found: {path}")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):
@@ -87,10 +86,7 @@ def resolve_split_source(data_cfg: Path, split: str) -> str:
 
     if split not in data_dict:
         available = [k for k in ["train", "val", "test"] if k in data_dict]
-        raise KeyError(
-            f"Split '{split}' not found in {data_cfg}. "
-            f"Available splits: {available}"
-        )
+        raise KeyError(f"Split '{split}' not found in {data_cfg}. Available splits: {available}")
 
     split_value = data_dict[split]
 
@@ -113,9 +109,7 @@ def resolve_split_source(data_cfg: Path, split: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Predict with the best MSA-YOLO11 SKU-to-MRS fine-tuned checkpoint."
-    )
+    parser = argparse.ArgumentParser(description="Predict with the best MSA-YOLO11 SKU-to-MRS fine-tuned checkpoint.")
 
     parser.add_argument(
         "--source",

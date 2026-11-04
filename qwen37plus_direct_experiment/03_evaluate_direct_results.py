@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Evaluate Qwen3.7-Plus direct recognition results against the enriched GT table.
 
 This script does not call the model. It:
@@ -20,33 +19,26 @@ Dependencies:
 Python compatibility: Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import argparse
 import ast
 import json
-import math
 import re
-import statistics
 import sys
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Sequence
 
 try:
     import pandas as pd
     import yaml
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n原始错误：{exc}")
 
 
-OUTPUT_ROOT = Path(
-    r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment"
-)
+OUTPUT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment")
 RUN_NAME = "qwen37plus_direct_v1"
 DEFAULT_CONFIG_PATH = OUTPUT_ROOT / "runs" / RUN_NAME / "config.yaml"
 
@@ -69,22 +61,77 @@ CONFIRMED_LABEL_VALUES = {"confirmed", "confirm", "已确认", "确定", "有效
 DOSAGE_FORM_SUFFIXES = tuple(
     sorted(
         {
-            "缓释胶囊", "肠溶胶囊", "软胶囊", "硬胶囊", "胶囊剂", "胶囊",
-            "缓释片", "控释片", "肠溶片", "分散片", "咀嚼片", "泡腾片",
-            "口崩片", "舌下片", "含片", "薄膜衣片", "片剂", "片",
-            "颗粒剂", "颗粒", "冲剂",
-            "浓缩丸", "水蜜丸", "大蜜丸", "小蜜丸", "水丸", "蜜丸",
-            "滴丸", "丸剂", "丸",
-            "口服溶液", "口服液", "合剂", "糖浆剂", "糖浆",
-            "混悬液", "混悬剂", "乳剂", "溶液剂", "溶液",
-            "喷雾剂", "喷剂", "气雾剂",
-            "软膏剂", "软膏", "乳膏剂", "乳膏", "凝胶剂", "凝胶",
-            "贴膏剂", "贴膏", "贴剂", "膏药",
-            "散剂", "散", "粉剂", "粉",
-            "滴眼液", "滴耳液", "滴鼻液",
-            "注射液", "注射剂",
-            "栓剂", "栓", "酊剂", "酊", "洗剂", "搽剂", "膜剂",
-            "茶剂", "饮片",
+            "缓释胶囊",
+            "肠溶胶囊",
+            "软胶囊",
+            "硬胶囊",
+            "胶囊剂",
+            "胶囊",
+            "缓释片",
+            "控释片",
+            "肠溶片",
+            "分散片",
+            "咀嚼片",
+            "泡腾片",
+            "口崩片",
+            "舌下片",
+            "含片",
+            "薄膜衣片",
+            "片剂",
+            "片",
+            "颗粒剂",
+            "颗粒",
+            "冲剂",
+            "浓缩丸",
+            "水蜜丸",
+            "大蜜丸",
+            "小蜜丸",
+            "水丸",
+            "蜜丸",
+            "滴丸",
+            "丸剂",
+            "丸",
+            "口服溶液",
+            "口服液",
+            "合剂",
+            "糖浆剂",
+            "糖浆",
+            "混悬液",
+            "混悬剂",
+            "乳剂",
+            "溶液剂",
+            "溶液",
+            "喷雾剂",
+            "喷剂",
+            "气雾剂",
+            "软膏剂",
+            "软膏",
+            "乳膏剂",
+            "乳膏",
+            "凝胶剂",
+            "凝胶",
+            "贴膏剂",
+            "贴膏",
+            "贴剂",
+            "膏药",
+            "散剂",
+            "散",
+            "粉剂",
+            "粉",
+            "滴眼液",
+            "滴耳液",
+            "滴鼻液",
+            "注射液",
+            "注射剂",
+            "栓剂",
+            "栓",
+            "酊剂",
+            "酊",
+            "洗剂",
+            "搽剂",
+            "膜剂",
+            "茶剂",
+            "饮片",
         },
         key=len,
         reverse=True,
@@ -98,14 +145,33 @@ DOSAGE_FORM_SUFFIXES = tuple(
 MANUFACTURER_SUFFIXES = tuple(
     sorted(
         {
-            "集团股份有限公司", "集团有限责任公司", "股份有限公司",
-            "有限责任公司", "有限公司", "集团公司", "总公司",
-            "制药股份有限公司", "制药有限责任公司", "制药有限公司",
-            "药业股份有限公司", "药业有限责任公司", "药业有限公司",
-            "医药股份有限公司", "医药有限责任公司", "医药有限公司",
-            "生物科技股份有限公司", "生物科技有限公司",
-            "科技制药有限公司", "制药厂有限公司", "中药厂有限公司",
-            "制药厂", "中药厂", "药业", "制药", "医药", "集团",
+            "集团股份有限公司",
+            "集团有限责任公司",
+            "股份有限公司",
+            "有限责任公司",
+            "有限公司",
+            "集团公司",
+            "总公司",
+            "制药股份有限公司",
+            "制药有限责任公司",
+            "制药有限公司",
+            "药业股份有限公司",
+            "药业有限责任公司",
+            "药业有限公司",
+            "医药股份有限公司",
+            "医药有限责任公司",
+            "医药有限公司",
+            "生物科技股份有限公司",
+            "生物科技有限公司",
+            "科技制药有限公司",
+            "制药厂有限公司",
+            "中药厂有限公司",
+            "制药厂",
+            "中药厂",
+            "药业",
+            "制药",
+            "医药",
+            "集团",
         },
         key=len,
         reverse=True,
@@ -115,14 +181,56 @@ MANUFACTURER_SUFFIXES = tuple(
 MANUFACTURER_LOCATION_PREFIXES = tuple(
     sorted(
         {
-            "黑龙江", "内蒙古", "广西壮族自治区", "新疆维吾尔自治区",
-            "宁夏回族自治区", "西藏自治区", "北京市", "上海市", "天津市",
-            "重庆市", "云南", "四川", "贵州", "广西", "广东", "福建",
-            "江西", "浙江", "江苏", "安徽", "山东", "山西", "陕西",
-            "甘肃", "青海", "河北", "河南", "湖北", "湖南", "吉林",
-            "辽宁", "北京", "上海", "天津", "重庆", "广州", "深圳",
-            "昆明", "桂林", "南京", "杭州", "成都", "武汉", "西安",
-            "大连", "无锡", "南宁", "漳州", "楚雄", "腾冲",
+            "黑龙江",
+            "内蒙古",
+            "广西壮族自治区",
+            "新疆维吾尔自治区",
+            "宁夏回族自治区",
+            "西藏自治区",
+            "北京市",
+            "上海市",
+            "天津市",
+            "重庆市",
+            "云南",
+            "四川",
+            "贵州",
+            "广西",
+            "广东",
+            "福建",
+            "江西",
+            "浙江",
+            "江苏",
+            "安徽",
+            "山东",
+            "山西",
+            "陕西",
+            "甘肃",
+            "青海",
+            "河北",
+            "河南",
+            "湖北",
+            "湖南",
+            "吉林",
+            "辽宁",
+            "北京",
+            "上海",
+            "天津",
+            "重庆",
+            "广州",
+            "深圳",
+            "昆明",
+            "桂林",
+            "南京",
+            "杭州",
+            "成都",
+            "武汉",
+            "西安",
+            "大连",
+            "无锡",
+            "南宁",
+            "漳州",
+            "楚雄",
+            "腾冲",
         },
         key=len,
         reverse=True,
@@ -140,18 +248,45 @@ MANUFACTURER_ALIAS_GROUPS_RAW = (
 )
 
 INVALID_MANUFACTURER_REFERENCES = {
-    "中国", "法国", "德国", "美国", "日本", "英国", "瑞士", "韩国",
-    "澳大利亚", "加拿大", "进口", "国产", "不详", "未知",
+    "中国",
+    "法国",
+    "德国",
+    "美国",
+    "日本",
+    "英国",
+    "瑞士",
+    "韩国",
+    "澳大利亚",
+    "加拿大",
+    "进口",
+    "国产",
+    "不详",
+    "未知",
 }
 GENERIC_LOCATION_NAMES = set(MANUFACTURER_LOCATION_PREFIXES)
 
 MULTI_OBJECT_SAME_PATTERNS = (
-    "相同药品", "同一药品", "同款药品", "多盒相同", "两盒相同",
-    "三盒相同", "多包相同", "两包相同", "三包相同", "多个相同",
+    "相同药品",
+    "同一药品",
+    "同款药品",
+    "多盒相同",
+    "两盒相同",
+    "三盒相同",
+    "多包相同",
+    "两包相同",
+    "三包相同",
+    "多个相同",
 )
 MULTI_OBJECT_DIFFERENT_PATTERNS = (
-    "不同药品", "多盒不同", "两盒不同", "多种不知名", "多种药品",
-    "不同规格", "不同sku", "不同型号", "多种相同品牌不同规格",
+    "不同药品",
+    "多盒不同",
+    "两盒不同",
+    "多种不知名",
+    "多种药品",
+    "不同规格",
+    "不同sku",
+    "不同型号",
+    "多种相同品牌不同规格",
 )
 
 # 前10个样本曾用于提示词调试。脚本会同时报告全量结果和排除开发样本后的盲测结果。
@@ -162,11 +297,9 @@ def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
+def read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise FileNotFoundError(
-            "未找到配置文件：{}。请先运行01_prepare_direct_experiment.py".format(path)
-        )
+        raise FileNotFoundError(f"未找到配置文件：{path}。请先运行01_prepare_direct_experiment.py")
     with path.open("r", encoding="utf-8") as file_obj:
         config = yaml.safe_load(file_obj)
     if not isinstance(config, dict):
@@ -238,7 +371,7 @@ def normalize_specification(value: Any) -> str:
 
 
 def normalize_manufacturer(value: Any) -> str:
-    """厂家完整名称标准化：只处理字符形式与明确等价的法律实体后缀。"""
+    """厂家完整名称标准化：只处理字符形式与明确等价的法律实体后缀。."""
     text = normalize_basic(value)
     if not text:
         return ""
@@ -270,30 +403,28 @@ def strip_manufacturer_suffixes(normalized: str) -> str:
 def strip_manufacturer_location_prefix(normalized: str) -> str:
     for prefix in MANUFACTURER_LOCATION_PREFIXES:
         if normalized.startswith(prefix):
-            base = normalized[len(prefix):]
+            base = normalized[len(prefix) :]
             if len(base) >= 2:
                 return base
     return normalized
 
 
-def manufacturer_alias_groups() -> List[Set[str]]:
-    groups: List[Set[str]] = []
+def manufacturer_alias_groups() -> list[set[str]]:
+    groups: list[set[str]] = []
     for group in MANUFACTURER_ALIAS_GROUPS_RAW:
-        normalized_group = {
-            normalize_manufacturer(item) for item in group if normalize_manufacturer(item)
-        }
+        normalized_group = {normalize_manufacturer(item) for item in group if normalize_manufacturer(item)}
         if normalized_group:
             groups.append(normalized_group)
     return groups
 
 
-def manufacturer_core_variants(value: Any) -> Set[str]:
-    """生成用于厂家核心名称评价的保守等价形式。"""
+def manufacturer_core_variants(value: Any) -> set[str]:
+    """生成用于厂家核心名称评价的保守等价形式。."""
     full = normalize_manufacturer(value)
     if not full or full in INVALID_MANUFACTURER_REFERENCES:
         return set()
 
-    variants: Set[str] = {full}
+    variants: set[str] = {full}
     no_parentheses = re.sub(r"\([^()]*\)", "", full)
     if no_parentheses:
         variants.add(no_parentheses)
@@ -314,19 +445,17 @@ def manufacturer_core_variants(value: Any) -> Set[str]:
     return {
         item
         for item in variants
-        if len(item) >= 2
-        and item not in GENERIC_LOCATION_NAMES
-        and item not in INVALID_MANUFACTURER_REFERENCES
+        if len(item) >= 2 and item not in GENERIC_LOCATION_NAMES and item not in INVALID_MANUFACTURER_REFERENCES
     }
 
 
 def manufacturer_sets_match(
-    predicted_full: Set[str],
-    predicted_core: Set[str],
-    valid_full: Set[str],
-    valid_core: Set[str],
+    predicted_full: set[str],
+    predicted_core: set[str],
+    valid_full: set[str],
+    valid_core: set[str],
 ) -> str:
-    """返回full/core/possible/wrong/missing_prediction/not_applicable。"""
+    """返回full/core/possible/wrong/missing_prediction/not_applicable。."""
     if not valid_full and not valid_core:
         return "not_applicable"
     if not predicted_full and not predicted_core:
@@ -340,9 +469,7 @@ def manufacturer_sets_match(
     for pred in predicted_core:
         for valid in valid_core:
             shorter, longer = (pred, valid) if len(pred) <= len(valid) else (valid, pred)
-            if len(shorter) >= 3 and (
-                longer.startswith(shorter) or longer.endswith(shorter)
-            ):
+            if len(shorter) >= 3 and (longer.startswith(shorter) or longer.endswith(shorter)):
                 return "core"
 
     # 仅提示人工复核，不自动判为正确。
@@ -353,7 +480,8 @@ def manufacturer_sets_match(
                 return "possible"
     return "wrong"
 
-def parse_bool(value: Any) -> Optional[bool]:
+
+def parse_bool(value: Any) -> bool | None:
     text = clean_cell(value).casefold()
     if text in TRUE_VALUES:
         return True
@@ -366,31 +494,25 @@ def parse_bool(value: Any) -> Optional[bool]:
         return None
 
 
-def first_existing_column(
-    frame: pd.DataFrame, candidates: Sequence[str], required: bool = False
-) -> Optional[str]:
+def first_existing_column(frame: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> str | None:
     for candidate in candidates:
         if candidate in frame.columns:
             return candidate
     if required:
         raise KeyError(
-            "未找到字段{}。当前表头：{}".format(
-                list(candidates), "、".join(map(str, frame.columns.tolist()))
-            )
+            "未找到字段{}。当前表头：{}".format(list(candidates), "、".join(map(str, frame.columns.tolist())))
         )
     return None
 
 
-def resolve_columns(
-    frame: pd.DataFrame, candidate_map: Dict[str, Sequence[str]]
-) -> Dict[str, Optional[str]]:
+def resolve_columns(frame: pd.DataFrame, candidate_map: dict[str, Sequence[str]]) -> dict[str, str | None]:
     return {
         logical_name: first_existing_column(frame, candidates, required=False)
         for logical_name, candidates in candidate_map.items()
     }
 
 
-def split_aliases(value: Any) -> List[str]:
+def split_aliases(value: Any) -> list[str]:
     text = clean_cell(value)
     if not text:
         return []
@@ -414,23 +536,19 @@ def normalize_sku(value: Any) -> str:
 
 
 def build_kb_records(
-    kb_df: pd.DataFrame, column_map: Dict[str, Sequence[str]]
-) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    kb_df: pd.DataFrame, column_map: dict[str, Sequence[str]]
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     sku_col = first_existing_column(kb_df, column_map["sku_id"], required=True)
     name_cols = [column for column in column_map["drug_name"] if column in kb_df.columns]
-    spec_cols = [
-        column for column in column_map["specification"] if column in kb_df.columns
-    ]
-    manufacturer_cols = [
-        column for column in column_map["manufacturer"] if column in kb_df.columns
-    ]
+    spec_cols = [column for column in column_map["specification"] if column in kb_df.columns]
+    manufacturer_cols = [column for column in column_map["manufacturer"] if column in kb_df.columns]
     alias_cols = [column for column in column_map["aliases"] if column in kb_df.columns]
 
     if not name_cols:
         raise KeyError("知识库中没有可用的药品名称字段")
 
-    records: List[Dict[str, Any]] = []
-    by_sku: Dict[str, Dict[str, Any]] = {}
+    records: list[dict[str, Any]] = []
+    by_sku: dict[str, dict[str, Any]] = {}
 
     for index, row in kb_df.iterrows():
         raw_sku = clean_cell(row.get(sku_col))
@@ -438,8 +556,8 @@ def build_kb_records(
         if not sku_norm:
             continue
 
-        names: Set[str] = set()
-        raw_names: Set[str] = set()
+        names: set[str] = set()
+        raw_names: set[str] = set()
         for column in name_cols:
             raw = clean_cell(row.get(column))
             if raw:
@@ -454,8 +572,8 @@ def build_kb_records(
                 if normalized:
                     names.add(normalized)
 
-        specs: Set[str] = set()
-        raw_specs: Set[str] = set()
+        specs: set[str] = set()
+        raw_specs: set[str] = set()
         for column in spec_cols:
             raw = clean_cell(row.get(column))
             if raw:
@@ -464,9 +582,9 @@ def build_kb_records(
                 if normalized:
                     specs.add(normalized)
 
-        manufacturers: Set[str] = set()
-        manufacturer_variants: Set[str] = set()
-        raw_manufacturers: Set[str] = set()
+        manufacturers: set[str] = set()
+        manufacturer_variants: set[str] = set()
+        raw_manufacturers: set[str] = set()
         for column in manufacturer_cols:
             raw = clean_cell(row.get(column))
             if raw and is_valid_manufacturer_reference(raw):
@@ -493,12 +611,11 @@ def build_kb_records(
 
     return records, by_sku
 
-def remove_parenthetical_qualifiers(normalized_name: str) -> str:
-    """去除括号及括号内的品牌、品种或补充限定信息。
 
-    仅用于核心名称评价，例如：
-    菊花(贡菊) -> 菊花
-    复方氨酚烷胺胶囊(快克) -> 复方氨酚烷胺胶囊
+def remove_parenthetical_qualifiers(normalized_name: str) -> str:
+    """去除括号及括号内的品牌、品种或补充限定信息。.
+
+    仅用于核心名称评价，例如： 菊花(贡菊) -> 菊花 复方氨酚烷胺胶囊(快克) -> 复方氨酚烷胺胶囊
     """
     if not normalized_name:
         return ""
@@ -511,7 +628,7 @@ def remove_parenthetical_qualifiers(normalized_name: str) -> str:
 
 
 def strip_terminal_dosage_form(normalized_name: str) -> str:
-    """保守地去除末尾剂型/包装后缀，不做任意前缀或子串匹配。"""
+    """保守地去除末尾剂型/包装后缀，不做任意前缀或子串匹配。."""
     if not normalized_name:
         return ""
 
@@ -524,8 +641,8 @@ def strip_terminal_dosage_form(normalized_name: str) -> str:
     return normalized_name
 
 
-def drug_name_core_variants(value: Any) -> Set[str]:
-    """生成用于核心药品名称评价的保守等价形式。
+def drug_name_core_variants(value: Any) -> set[str]:
+    """生成用于核心药品名称评价的保守等价形式。.
 
     允许：
     - 去除括号补充信息：菊花(贡菊) -> 菊花
@@ -540,7 +657,7 @@ def drug_name_core_variants(value: Any) -> Set[str]:
     if not full_name:
         return set()
 
-    variants: Set[str] = {full_name}
+    variants: set[str] = {full_name}
     without_parentheses = remove_parenthetical_qualifiers(full_name)
     if without_parentheses:
         variants.add(without_parentheses)
@@ -553,17 +670,13 @@ def drug_name_core_variants(value: Any) -> Set[str]:
     return {item for item in variants if item}
 
 
-def prediction_full_name_set(row: pd.Series) -> Set[str]:
+def prediction_full_name_set(row: pd.Series) -> set[str]:
     values = [row.get("pred_drug_name", ""), row.get("pred_generic_name", "")]
-    return {
-        normalize_drug_name(value)
-        for value in values
-        if normalize_drug_name(value)
-    }
+    return {normalize_drug_name(value) for value in values if normalize_drug_name(value)}
 
 
-def prediction_core_name_set(row: pd.Series) -> Set[str]:
-    names: Set[str] = set()
+def prediction_core_name_set(row: pd.Series) -> set[str]:
+    names: set[str] = set()
     for value in [row.get("pred_drug_name", ""), row.get("pred_generic_name", "")]:
         names.update(drug_name_core_variants(value))
     return names
@@ -571,11 +684,11 @@ def prediction_core_name_set(row: pd.Series) -> Set[str]:
 
 def gt_full_name_set(
     gt_row: pd.Series,
-    gt_drug_name_col: Optional[str],
-    gt_sku_id_col: Optional[str],
-    kb_by_sku: Dict[str, Dict[str, Any]],
-) -> Set[str]:
-    names: Set[str] = set()
+    gt_drug_name_col: str | None,
+    gt_sku_id_col: str | None,
+    kb_by_sku: dict[str, dict[str, Any]],
+) -> set[str]:
+    names: set[str] = set()
 
     if gt_drug_name_col:
         normalized = normalize_drug_name(gt_row.get(gt_drug_name_col))
@@ -593,11 +706,11 @@ def gt_full_name_set(
 
 def gt_core_name_set(
     gt_row: pd.Series,
-    gt_drug_name_col: Optional[str],
-    gt_sku_id_col: Optional[str],
-    kb_by_sku: Dict[str, Dict[str, Any]],
-) -> Set[str]:
-    names: Set[str] = set()
+    gt_drug_name_col: str | None,
+    gt_sku_id_col: str | None,
+    kb_by_sku: dict[str, dict[str, Any]],
+) -> set[str]:
+    names: set[str] = set()
 
     if gt_drug_name_col:
         names.update(drug_name_core_variants(gt_row.get(gt_drug_name_col)))
@@ -612,7 +725,7 @@ def gt_core_name_set(
     return names
 
 
-def prediction_manufacturer_sets(row: pd.Series) -> Tuple[Set[str], Set[str]]:
+def prediction_manufacturer_sets(row: pd.Series) -> tuple[set[str], set[str]]:
     raw = row.get("pred_manufacturer", "")
     full = normalize_manufacturer(raw)
     full_set = {full} if full and is_valid_manufacturer_reference(raw) else set()
@@ -621,12 +734,12 @@ def prediction_manufacturer_sets(row: pd.Series) -> Tuple[Set[str], Set[str]]:
 
 def gt_manufacturer_sets(
     gt_row: pd.Series,
-    gt_manufacturer_col: Optional[str],
-    gt_sku_id_col: Optional[str],
-    kb_by_sku: Dict[str, Dict[str, Any]],
-) -> Tuple[Set[str], Set[str]]:
-    full_names: Set[str] = set()
-    core_names: Set[str] = set()
+    gt_manufacturer_col: str | None,
+    gt_sku_id_col: str | None,
+    kb_by_sku: dict[str, dict[str, Any]],
+) -> tuple[set[str], set[str]]:
+    full_names: set[str] = set()
+    core_names: set[str] = set()
 
     if gt_manufacturer_col:
         raw = clean_cell(gt_row.get(gt_manufacturer_col))
@@ -646,10 +759,8 @@ def gt_manufacturer_sets(
     return full_names, core_names
 
 
-def possible_name_alias_or_brand_difference(
-    predicted_names: Set[str], valid_names: Set[str]
-) -> bool:
-    """只生成复核提示，不自动把包含关系判成正确。"""
+def possible_name_alias_or_brand_difference(predicted_names: set[str], valid_names: set[str]) -> bool:
+    """只生成复核提示，不自动把包含关系判成正确。."""
     for pred in predicted_names:
         for valid in valid_names:
             shorter, longer = (pred, valid) if len(pred) <= len(valid) else (valid, pred)
@@ -674,16 +785,16 @@ def bool_value_is(value: Any, expected: bool) -> bool:
 
 # 以下两个函数保留给严格SKU离线映射使用。
 # 严格SKU映射不采用“去剂型后的核心名称”，只使用完整标准名/合法别名。
-def prediction_name_set(row: pd.Series) -> Set[str]:
+def prediction_name_set(row: pd.Series) -> set[str]:
     return prediction_full_name_set(row)
 
 
 def gt_valid_names(
     gt_row: pd.Series,
-    gt_drug_name_col: Optional[str],
-    gt_sku_id_col: Optional[str],
-    kb_by_sku: Dict[str, Dict[str, Any]],
-) -> Set[str]:
+    gt_drug_name_col: str | None,
+    gt_sku_id_col: str | None,
+    kb_by_sku: dict[str, dict[str, Any]],
+) -> set[str]:
     return gt_full_name_set(
         gt_row,
         gt_drug_name_col,
@@ -692,10 +803,8 @@ def gt_valid_names(
     )
 
 
-def map_prediction_to_unique_sku(
-    row: pd.Series, kb_records: List[Dict[str, Any]]
-) -> Tuple[str, str, int]:
-    """按完整名称/合法别名、规格和厂家核心等价形式映射唯一SKU。"""
+def map_prediction_to_unique_sku(row: pd.Series, kb_records: list[dict[str, Any]]) -> tuple[str, str, int]:
+    """按完整名称/合法别名、规格和厂家核心等价形式映射唯一SKU。."""
     pred_names = prediction_name_set(row)
     pred_spec = normalize_specification(row.get("pred_specification", ""))
     _, pred_manufacturer_core = prediction_manufacturer_sets(row)
@@ -717,39 +826,31 @@ def map_prediction_to_unique_sku(
             record
             for record in candidates
             if pred_manufacturer_core & record.get("manufacturer_variants", set())
-            or manufacturer_sets_match(
-                set(), pred_manufacturer_core,
-                set(), record.get("manufacturer_variants", set())
-            ) == "core"
+            or manufacturer_sets_match(set(), pred_manufacturer_core, set(), record.get("manufacturer_variants", set()))
+            == "core"
         ]
         if not candidates:
             return "", "manufacturer_not_found", 0
 
-    unique_skus: Dict[str, str] = {}
+    unique_skus: dict[str, str] = {}
     for record in candidates:
         unique_skus[record["sku_norm"]] = record["sku_id"]
 
     if len(unique_skus) == 1:
-        return list(unique_skus.values())[0], "unique", 1
+        return next(iter(unique_skus.values())), "unique", 1
     return "", "ambiguous", len(unique_skus)
 
 
 def multi_object_relation(
     gt_row: pd.Series,
-    gt_cols: Dict[str, Optional[str]],
+    gt_cols: dict[str, str | None],
 ) -> str:
-    """返回single/same_product/different_product/ambiguous。"""
-    multi_object = (
-        parse_bool(gt_row.get(gt_cols["multi_object"]))
-        if gt_cols.get("multi_object")
-        else False
-    )
+    """返回single/same_product/different_product/ambiguous。."""
+    multi_object = parse_bool(gt_row.get(gt_cols["multi_object"])) if gt_cols.get("multi_object") else False
     if multi_object is not True:
         return "single"
 
-    note = normalize_basic(
-        gt_row.get(gt_cols["note"]) if gt_cols.get("note") else ""
-    )
+    note = normalize_basic(gt_row.get(gt_cols["note"]) if gt_cols.get("note") else "")
     # 必须先判断“不同”，因为“相同品牌不同规格”同时包含“相同”和“不同”。
     if any(normalize_basic(pattern) in note for pattern in MULTI_OBJECT_DIFFERENT_PATTERNS):
         return "different_product"
@@ -760,23 +861,11 @@ def multi_object_relation(
 
 def expected_decision(
     gt_row: pd.Series,
-    gt_cols: Dict[str, Optional[str]],
+    gt_cols: dict[str, str | None],
 ) -> str:
-    false_positive = (
-        parse_bool(gt_row.get(gt_cols["false_positive"]))
-        if gt_cols.get("false_positive")
-        else False
-    )
-    label_status = (
-        clean_cell(gt_row.get(gt_cols["label_status"])).casefold()
-        if gt_cols.get("label_status")
-        else ""
-    )
-    gt_name = (
-        clean_cell(gt_row.get(gt_cols["gt_drug_name"]))
-        if gt_cols.get("gt_drug_name")
-        else ""
-    )
+    false_positive = parse_bool(gt_row.get(gt_cols["false_positive"])) if gt_cols.get("false_positive") else False
+    label_status = clean_cell(gt_row.get(gt_cols["label_status"])).casefold() if gt_cols.get("label_status") else ""
+    gt_name = clean_cell(gt_row.get(gt_cols["gt_drug_name"])) if gt_cols.get("gt_drug_name") else ""
     relation = multi_object_relation(gt_row, gt_cols)
 
     if false_positive is True:
@@ -793,17 +882,18 @@ def expected_decision(
 
 def is_main_identification_sample(
     gt_row: pd.Series,
-    gt_cols: Dict[str, Optional[str]],
+    gt_cols: dict[str, str | None],
 ) -> bool:
     return expected_decision(gt_row, gt_cols) == "matched"
 
-def proportion(numerator: int, denominator: int) -> Optional[float]:
+
+def proportion(numerator: int, denominator: int) -> float | None:
     if denominator <= 0:
         return None
     return numerator / denominator
 
 
-def metric_record(numerator: int, denominator: int) -> Dict[str, Any]:
+def metric_record(numerator: int, denominator: int) -> dict[str, Any]:
     return {
         "numerator": int(numerator),
         "denominator": int(denominator),
@@ -817,15 +907,15 @@ def numeric_series(frame: pd.DataFrame, column: str) -> pd.Series:
     return pd.to_numeric(frame[column], errors="coerce").dropna()
 
 
-def safe_mean(series: pd.Series) -> Optional[float]:
+def safe_mean(series: pd.Series) -> float | None:
     return None if series.empty else float(series.mean())
 
 
-def safe_sum(series: pd.Series) -> Optional[float]:
+def safe_sum(series: pd.Series) -> float | None:
     return None if series.empty else float(series.sum())
 
 
-def classify_subset(row: pd.Series, gt_cols: Dict[str, Optional[str]]) -> str:
+def classify_subset(row: pd.Series, gt_cols: dict[str, str | None]) -> str:
     relation = clean_cell(row.get("multi_object_relation"))
     exp = clean_cell(row.get("expected_decision"))
 
@@ -840,22 +930,24 @@ def classify_subset(row: pd.Series, gt_cols: Dict[str, Optional[str]]) -> str:
     if exp == "unknown":
         return "unknown"
 
-    readable = (
-        parse_bool(row.get(gt_cols["readable"])) if gt_cols.get("readable") else None
-    )
-    visibility = (
-        clean_cell(row.get(gt_cols["visibility"])).casefold()
-        if gt_cols.get("visibility")
-        else ""
-    )
+    readable = parse_bool(row.get(gt_cols["readable"])) if gt_cols.get("readable") else None
+    visibility = clean_cell(row.get(gt_cols["visibility"])).casefold() if gt_cols.get("visibility") else ""
     if readable is False or visibility in {
-        "partial", "low", "poor", "部分可见", "低", "较差", "遮挡", "occluded",
+        "partial",
+        "low",
+        "poor",
+        "部分可见",
+        "低",
+        "较差",
+        "遮挡",
+        "occluded",
     }:
         return "difficult"
     return "clear_or_regular"
 
-def determine_error_types(row: pd.Series, gt_cols: Dict[str, Optional[str]]) -> List[str]:
-    errors: List[str] = []
+
+def determine_error_types(row: pd.Series, gt_cols: dict[str, str | None]) -> list[str]:
+    errors: list[str] = []
     status = clean_cell(row.get("status"))
     decision = clean_cell(row.get("decision"))
     expected = clean_cell(row.get("expected_decision"))
@@ -881,45 +973,38 @@ def determine_error_types(row: pd.Series, gt_cols: Dict[str, Optional[str]]) -> 
             errors.append("E3_核心商品名称错误或相似包装混淆")
             if bool(row.get("possible_name_alias_review", False)):
                 errors.append("R2_可能为品牌前缀简称或合法别名需复核")
-        elif bool_value_is(row.get("name_core_correct"), True) and bool_value_is(
-            row.get("name_full_correct"), False
-        ):
+        elif bool_value_is(row.get("name_core_correct"), True) and bool_value_is(row.get("name_full_correct"), False):
             errors.append("E3B_核心名称正确但完整商品名不一致")
 
-        if bool_value_is(row.get("name_core_correct"), True) and bool_value_is(
-            row.get("spec_correct"), False
-        ):
+        if bool_value_is(row.get("name_core_correct"), True) and bool_value_is(row.get("spec_correct"), False):
             errors.append("E4_核心名称正确但规格错误或缺失")
 
         manufacturer_match_type = clean_cell(row.get("manufacturer_match_type"))
         if bool_value_is(row.get("name_core_correct"), True) and manufacturer_match_type in {
-            "wrong", "missing_prediction", "possible"
+            "wrong",
+            "missing_prediction",
+            "possible",
         }:
             errors.append("E5_核心名称正确但厂家错误缺失或待复核")
 
         if bool_value_is(row.get("strict_sku_correct"), False):
             errors.append("E6_严格SKU无法唯一匹配或错误")
 
-    readable = (
-        parse_bool(row.get(gt_cols["readable"])) if gt_cols.get("readable") else None
-    )
-    visibility = (
-        clean_cell(row.get(gt_cols["visibility"])).casefold()
-        if gt_cols.get("visibility")
-        else ""
-    )
+    readable = parse_bool(row.get(gt_cols["readable"])) if gt_cols.get("readable") else None
+    visibility = clean_cell(row.get(gt_cols["visibility"])).casefold() if gt_cols.get("visibility") else ""
     if errors and readable is False:
         errors.insert(0, "E1_文字模糊或不可读")
     if errors and visibility in {"partial", "部分可见", "遮挡", "occluded"}:
         errors.insert(0, "E2_遮挡或裁剪不完整")
 
-    unique: List[str] = []
+    unique: list[str] = []
     for item in errors:
         if item not in unique:
             unique.append(item)
     return unique
 
-def sample_number(sample_id: Any) -> Optional[int]:
+
+def sample_number(sample_id: Any) -> int | None:
     match = re.fullmatch(r"sample_(\d+)", clean_cell(sample_id))
     if not match:
         return None
@@ -931,9 +1016,9 @@ def is_prompt_development_sample(sample_id: Any, development_count: int) -> bool
     return number is not None and 1 <= number <= development_count
 
 
-def dataframe_bool_metric(frame: pd.DataFrame, column: str) -> Dict[str, Any]:
+def dataframe_bool_metric(frame: pd.DataFrame, column: str) -> dict[str, Any]:
     valid = frame[column].notna()
-    numerator = int((frame.loc[valid, column] == True).sum())  # noqa: E712
+    numerator = int((frame.loc[valid, column] == True).sum())
     denominator = int(valid.sum())
     return metric_record(numerator, denominator)
 
@@ -942,7 +1027,7 @@ def nonempty_metric(
     frame: pd.DataFrame,
     value_column: str,
     eligibility_mask: pd.Series,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     available = frame[value_column].fillna("").astype(str).str.strip() != ""
     numerator = int((eligibility_mask & available).sum())
     denominator = int(eligibility_mask.sum())
@@ -953,56 +1038,40 @@ def conditional_bool_metric(
     frame: pd.DataFrame,
     bool_column: str,
     condition_mask: pd.Series,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     valid = condition_mask & frame[bool_column].notna()
-    numerator = int((frame.loc[valid, bool_column] == True).sum())  # noqa: E712
+    numerator = int((frame.loc[valid, bool_column] == True).sum())
     denominator = int(valid.sum())
     return metric_record(numerator, denominator)
 
 
-def recognition_metric_bundle(frame: pd.DataFrame) -> Dict[str, Any]:
-    main_mask = frame["is_main_identification_sample"] == True  # noqa: E712
+def recognition_metric_bundle(frame: pd.DataFrame) -> dict[str, Any]:
+    main_mask = frame["is_main_identification_sample"] == True
     spec_gt_mask = frame["spec_correct"].notna()
     manufacturer_gt_mask = frame["manufacturer_core_correct"].notna()
     sku_gt_mask = frame["strict_sku_correct"].notna()
 
-    pred_name_nonempty = (
-        frame["pred_drug_name"].fillna("").astype(str).str.strip() != ""
-    ) | (
+    pred_name_nonempty = (frame["pred_drug_name"].fillna("").astype(str).str.strip() != "") | (
         frame["pred_generic_name"].fillna("").astype(str).str.strip() != ""
     )
-    pred_spec_nonempty = (
-        frame["pred_specification"].fillna("").astype(str).str.strip() != ""
-    )
-    pred_manufacturer_nonempty = (
-        frame["pred_manufacturer"].fillna("").astype(str).str.strip() != ""
-    )
-    mapped_nonempty = (
-        frame["mapped_sku_id"].fillna("").astype(str).str.strip() != ""
-    )
+    pred_spec_nonempty = frame["pred_specification"].fillna("").astype(str).str.strip() != ""
+    pred_manufacturer_nonempty = frame["pred_manufacturer"].fillna("").astype(str).str.strip() != ""
+    mapped_nonempty = frame["mapped_sku_id"].fillna("").astype(str).str.strip() != ""
 
     return {
         "drug_name_accuracy": dataframe_bool_metric(frame, "name_core_correct"),
         "drug_name_core_accuracy": dataframe_bool_metric(frame, "name_core_correct"),
         "drug_name_full_accuracy": dataframe_bool_metric(frame, "name_full_correct"),
         "specification_accuracy": dataframe_bool_metric(frame, "spec_correct"),
-        "manufacturer_accuracy": dataframe_bool_metric(
-            frame, "manufacturer_core_correct"
-        ),
-        "manufacturer_core_accuracy": dataframe_bool_metric(
-            frame, "manufacturer_core_correct"
-        ),
-        "manufacturer_full_accuracy": dataframe_bool_metric(
-            frame, "manufacturer_full_correct"
-        ),
+        "manufacturer_accuracy": dataframe_bool_metric(frame, "manufacturer_core_correct"),
+        "manufacturer_core_accuracy": dataframe_bool_metric(frame, "manufacturer_core_correct"),
+        "manufacturer_full_accuracy": dataframe_bool_metric(frame, "manufacturer_full_correct"),
         "strict_sku_accuracy": dataframe_bool_metric(frame, "strict_sku_correct"),
         "matched_decision_coverage": metric_record(
             int((main_mask & (frame["decision"] == "matched")).sum()),
             int(main_mask.sum()),
         ),
-        "drug_name_output_coverage": metric_record(
-            int((main_mask & pred_name_nonempty).sum()), int(main_mask.sum())
-        ),
+        "drug_name_output_coverage": metric_record(int((main_mask & pred_name_nonempty).sum()), int(main_mask.sum())),
         "specification_output_coverage": metric_record(
             int((spec_gt_mask & pred_spec_nonempty).sum()), int(spec_gt_mask.sum())
         ),
@@ -1024,8 +1093,8 @@ def recognition_metric_bundle(frame: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-def flatten_metrics_for_csv(metrics: Dict[str, Any]) -> pd.DataFrame:
-    rows: List[Dict[str, Any]] = []
+def flatten_metrics_for_csv(metrics: dict[str, Any]) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
 
     def visit(prefix: str, value: Any) -> None:
         if isinstance(value, dict) and {"numerator", "denominator", "value"}.issubset(value):
@@ -1035,15 +1104,13 @@ def flatten_metrics_for_csv(metrics: Dict[str, Any]) -> pd.DataFrame:
                     "numerator": value.get("numerator"),
                     "denominator": value.get("denominator"),
                     "value": value.get("value"),
-                    "percentage": (
-                        None if value.get("value") is None else value.get("value") * 100
-                    ),
+                    "percentage": (None if value.get("value") is None else value.get("value") * 100),
                 }
             )
             return
         if isinstance(value, dict):
             for key, child in value.items():
-                visit("{}.{}".format(prefix, key) if prefix else str(key), child)
+                visit(f"{prefix}.{key}" if prefix else str(key), child)
             return
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             rows.append(
@@ -1086,39 +1153,29 @@ def main() -> int:
         ("知识库", kb_path),
     ]:
         if not path.exists():
-            raise FileNotFoundError("{}不存在：{}".format(label, path))
+            raise FileNotFoundError(f"{label}不存在：{path}")
 
-    manifest = pd.read_csv(
-        manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
-    predictions = pd.read_csv(
-        predictions_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
+    manifest = pd.read_csv(manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+    predictions = pd.read_csv(predictions_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     gt_df = pd.read_excel(gt_path, engine="openpyxl")
     kb_df = pd.read_excel(kb_path, engine="openpyxl")
 
     if predictions["sample_id"].duplicated().any():
-        duplicate_ids = predictions.loc[
-            predictions["sample_id"].duplicated(keep=False), "sample_id"
-        ].tolist()
-        raise ValueError("预测表存在重复sample_id：{}".format(duplicate_ids[:10]))
+        duplicate_ids = predictions.loc[predictions["sample_id"].duplicated(keep=False), "sample_id"].tolist()
+        raise ValueError(f"预测表存在重复sample_id：{duplicate_ids[:10]}")
 
     gt_cols = resolve_columns(gt_df, eval_cfg["column_candidates"])
     if not gt_cols.get("gt_drug_name"):
         raise KeyError("真值表必须包含gt_drug_name或对应候选字段")
 
-    kb_records, kb_by_sku = build_kb_records(
-        kb_df, eval_cfg["knowledge_base_columns"]
-    )
+    kb_records, kb_by_sku = build_kb_records(kb_df, eval_cfg["knowledge_base_columns"])
 
     merged = manifest.merge(predictions, on="sample_id", how="left", validate="one_to_one")
 
-    gt_columns_renamed = {column: "gt__{}".format(column) for column in gt_df.columns}
+    gt_columns_renamed = {column: f"gt__{column}" for column in gt_df.columns}
     gt_for_merge = gt_df.rename(columns=gt_columns_renamed).copy()
     gt_for_merge["gt_row_index_numeric"] = gt_for_merge.index.astype(int)
-    merged["gt_row_index_numeric"] = pd.to_numeric(
-        merged["gt_row_index"], errors="coerce"
-    ).astype("Int64")
+    merged["gt_row_index_numeric"] = pd.to_numeric(merged["gt_row_index"], errors="coerce").astype("Int64")
     merged = merged.merge(
         gt_for_merge,
         on="gt_row_index_numeric",
@@ -1126,28 +1183,26 @@ def main() -> int:
         validate="many_to_one",
     )
 
-    merged_gt_cols: Dict[str, Optional[str]] = {}
+    merged_gt_cols: dict[str, str | None] = {}
     for logical_name, original_col in gt_cols.items():
-        merged_gt_cols[logical_name] = (
-            "gt__{}".format(original_col) if original_col else None
-        )
+        merged_gt_cols[logical_name] = f"gt__{original_col}" if original_col else None
 
-    expected_values: List[str] = []
-    multi_relations: List[str] = []
-    main_flags: List[bool] = []
-    decision_correct_values: List[Optional[bool]] = []
-    name_core_correct_values: List[Optional[bool]] = []
-    name_full_correct_values: List[Optional[bool]] = []
-    name_match_types: List[str] = []
-    possible_name_alias_values: List[bool] = []
-    spec_correct_values: List[Optional[bool]] = []
-    manufacturer_core_correct_values: List[Optional[bool]] = []
-    manufacturer_full_correct_values: List[Optional[bool]] = []
-    manufacturer_match_types: List[str] = []
-    mapped_skus: List[str] = []
-    sku_mapping_statuses: List[str] = []
-    sku_candidate_counts: List[int] = []
-    strict_sku_correct_values: List[Optional[bool]] = []
+    expected_values: list[str] = []
+    multi_relations: list[str] = []
+    main_flags: list[bool] = []
+    decision_correct_values: list[bool | None] = []
+    name_core_correct_values: list[bool | None] = []
+    name_full_correct_values: list[bool | None] = []
+    name_match_types: list[str] = []
+    possible_name_alias_values: list[bool] = []
+    spec_correct_values: list[bool | None] = []
+    manufacturer_core_correct_values: list[bool | None] = []
+    manufacturer_full_correct_values: list[bool | None] = []
+    manufacturer_match_types: list[str] = []
+    mapped_skus: list[str] = []
+    sku_mapping_statuses: list[str] = []
+    sku_candidate_counts: list[int] = []
+    strict_sku_correct_values: list[bool | None] = []
 
     for _, row in merged.iterrows():
         gt_present = clean_cell(row.get("gt_match_status")) == "matched"
@@ -1201,11 +1256,8 @@ def main() -> int:
             )
             full_correct = bool(predicted_full_names & valid_full_names)
             core_correct = bool(predicted_core_names & valid_core_names)
-            possible_alias = (
-                not core_correct
-                and possible_name_alias_or_brand_difference(
-                    predicted_core_names, valid_core_names
-                )
+            possible_alias = not core_correct and possible_name_alias_or_brand_difference(
+                predicted_core_names, valid_core_names
             )
             name_full_correct_values.append(full_correct)
             name_core_correct_values.append(core_correct)
@@ -1227,14 +1279,11 @@ def main() -> int:
             possible_name_alias_values.append(False)
 
         gt_spec = (
-            clean_cell(row.get(merged_gt_cols["gt_specification"]))
-            if merged_gt_cols.get("gt_specification")
-            else ""
+            clean_cell(row.get(merged_gt_cols["gt_specification"])) if merged_gt_cols.get("gt_specification") else ""
         )
         if main_sample and gt_spec:
             spec_correct_values.append(
-                normalize_specification(row.get("pred_specification", ""))
-                == normalize_specification(gt_spec)
+                normalize_specification(row.get("pred_specification", "")) == normalize_specification(gt_spec)
             )
         else:
             spec_correct_values.append(None)
@@ -1255,31 +1304,20 @@ def main() -> int:
             )
             manufacturer_match_types.append(manufacturer_type)
             manufacturer_full_correct_values.append(manufacturer_type == "full")
-            manufacturer_core_correct_values.append(
-                manufacturer_type in {"full", "core"}
-            )
+            manufacturer_core_correct_values.append(manufacturer_type in {"full", "core"})
         else:
             manufacturer_match_types.append("not_applicable")
             manufacturer_full_correct_values.append(None)
             manufacturer_core_correct_values.append(None)
 
-        mapped_sku, mapping_status, candidate_count = map_prediction_to_unique_sku(
-            row, kb_records
-        )
+        mapped_sku, mapping_status, candidate_count = map_prediction_to_unique_sku(row, kb_records)
         mapped_skus.append(mapped_sku)
         sku_mapping_statuses.append(mapping_status)
         sku_candidate_counts.append(candidate_count)
 
-        gt_sku = (
-            clean_cell(row.get(merged_gt_cols["gt_sku_id"]))
-            if merged_gt_cols.get("gt_sku_id")
-            else ""
-        )
+        gt_sku = clean_cell(row.get(merged_gt_cols["gt_sku_id"])) if merged_gt_cols.get("gt_sku_id") else ""
         if main_sample and gt_sku:
-            strict_sku_correct_values.append(
-                bool(mapped_sku)
-                and normalize_sku(mapped_sku) == normalize_sku(gt_sku)
-            )
+            strict_sku_correct_values.append(bool(mapped_sku) and normalize_sku(mapped_sku) == normalize_sku(gt_sku))
         else:
             strict_sku_correct_values.append(None)
 
@@ -1293,20 +1331,14 @@ def main() -> int:
     merged["name_match_type"] = name_match_types
     merged["possible_name_alias_review"] = possible_name_alias_values
     merged["spec_correct"] = pd.Series(spec_correct_values, dtype="boolean")
-    merged["manufacturer_core_correct"] = pd.Series(
-        manufacturer_core_correct_values, dtype="boolean"
-    )
-    merged["manufacturer_full_correct"] = pd.Series(
-        manufacturer_full_correct_values, dtype="boolean"
-    )
+    merged["manufacturer_core_correct"] = pd.Series(manufacturer_core_correct_values, dtype="boolean")
+    merged["manufacturer_full_correct"] = pd.Series(manufacturer_full_correct_values, dtype="boolean")
     merged["manufacturer_correct"] = merged["manufacturer_core_correct"]
     merged["manufacturer_match_type"] = manufacturer_match_types
     merged["mapped_sku_id"] = mapped_skus
     merged["sku_mapping_status"] = sku_mapping_statuses
     merged["sku_mapping_candidate_count"] = sku_candidate_counts
-    merged["strict_sku_correct"] = pd.Series(
-        strict_sku_correct_values, dtype="boolean"
-    )
+    merged["strict_sku_correct"] = pd.Series(strict_sku_correct_values, dtype="boolean")
 
     development_count = int(
         config.get("experiment", {}).get(
@@ -1323,66 +1355,46 @@ def main() -> int:
         & (merged["decision"] == "matched")
         & (
             merged["expected_decision"].isin(["unknown", "multi_object", "non_drug"])
-            | (
-                (merged["expected_decision"] == "matched")
-                & (merged["name_core_correct"] == False)  # noqa: E712
-            )
+            | ((merged["expected_decision"] == "matched") & (merged["name_core_correct"] == False))
         )
     )
 
     merged["needs_manual_review"] = (
         (merged["expected_decision"] == "review")
-        | (
-            (merged["expected_decision"] == "unknown")
-            & (merged["decision"] == "matched")
-        )
+        | ((merged["expected_decision"] == "unknown") & (merged["decision"] == "matched"))
         | merged["possible_name_alias_review"]
         | (merged["manufacturer_match_type"] == "possible")
     )
 
-    merged["subset"] = merged.apply(
-        lambda row: classify_subset(row, merged_gt_cols), axis=1
-    )
-    error_type_lists = merged.apply(
-        lambda row: determine_error_types(row, merged_gt_cols), axis=1
-    )
+    merged["subset"] = merged.apply(lambda row: classify_subset(row, merged_gt_cols), axis=1)
+    error_type_lists = merged.apply(lambda row: determine_error_types(row, merged_gt_cols), axis=1)
     merged["error_types"] = error_type_lists.apply(lambda items: "|".join(items))
-    merged["primary_error_type"] = error_type_lists.apply(
-        lambda items: items[0] if items else ""
-    )
+    merged["primary_error_type"] = error_type_lists.apply(lambda items: items[0] if items else "")
 
     gt_available_mask = merged["gt_match_status"] == "matched"
     decision_evaluable_mask = merged["decision_correct"].notna()
-    main_mask = merged["is_main_identification_sample"] == True  # noqa: E712
-    special_mask = merged["expected_decision"].isin(
-        ["unknown", "multi_object", "non_drug"]
-    )
-    correct_rejection_mask = special_mask & (merged["decision_correct"] == True)  # noqa: E712
+    main_mask = merged["is_main_identification_sample"] == True
+    special_mask = merged["expected_decision"].isin(["unknown", "multi_object", "non_drug"])
+    correct_rejection_mask = special_mask & (merged["decision_correct"] == True)
     unsupported_definitive_mask = special_mask & (merged["decision"] == "matched")
-    matched_output_mask = (
-        gt_available_mask
-        & (merged["status"] == "ok")
-        & (merged["decision"] == "matched")
-    )
+    matched_output_mask = gt_available_mask & (merged["status"] == "ok") & (merged["decision"] == "matched")
     overconfident_wrong_mask = matched_output_mask & merged["overconfident_wrong_match"]
-    core_correct_mask = merged["name_core_correct"] == True  # noqa: E712
-    core_only_mask = core_correct_mask & (merged["name_full_correct"] == False)  # noqa: E712
+    core_correct_mask = merged["name_core_correct"] == True
+    core_only_mask = core_correct_mask & (merged["name_full_correct"] == False)
 
     blind_mask = ~merged["is_prompt_development_sample"]
     blind_merged = merged.loc[blind_mask].copy()
     blind_decision_evaluable = blind_merged["decision_correct"].notna()
-    blind_special_mask = blind_merged["expected_decision"].isin(
-        ["unknown", "multi_object", "non_drug"]
-    )
+    blind_special_mask = blind_merged["expected_decision"].isin(["unknown", "multi_object", "non_drug"])
 
-    def decision_metric_for_expected(expected_value: str) -> Dict[str, Any]:
+    def decision_metric_for_expected(expected_value: str) -> dict[str, Any]:
         mask = merged["expected_decision"] == expected_value
         return metric_record(
-            int((mask & (merged["decision_correct"] == True)).sum()),  # noqa: E712
+            int((mask & (merged["decision_correct"] == True)).sum()),
             int(mask.sum()),
         )
 
-    metrics: Dict[str, Any] = {
+    metrics: dict[str, Any] = {
         "experiment": {
             "name": config["experiment"]["name"],
             "evaluated_at": now_iso(),
@@ -1391,7 +1403,7 @@ def main() -> int:
             "evaluation_script_version": "2.0",
         },
         "sample_counts": {
-            "manifest_total": int(len(merged)),
+            "manifest_total": len(merged),
             "gt_matched": int(gt_available_mask.sum()),
             "gt_unmatched_or_ambiguous": int((~gt_available_mask).sum()),
             "decision_evaluable_samples": int(decision_evaluable_mask.sum()),
@@ -1406,9 +1418,7 @@ def main() -> int:
             "api_error": int((merged["status"] == "api_error").sum()),
             "input_error": int((merged["status"] == "input_error").sum()),
             "missing_prediction": int(merged["status"].isna().sum()),
-            "prompt_development_samples": int(
-                merged["is_prompt_development_sample"].sum()
-            ),
+            "prompt_development_samples": int(merged["is_prompt_development_sample"].sum()),
             "blind_samples_excluding_prompt_development": int(blind_mask.sum()),
         },
         "evaluation_rules": {
@@ -1422,17 +1432,13 @@ def main() -> int:
             "manufacturer_arbitrary_edit_distance": False,
         },
         "recognition": recognition_metric_bundle(merged),
-        "recognition_blind_excluding_prompt_development_samples": (
-            recognition_metric_bundle(blind_merged)
-        ),
+        "recognition_blind_excluding_prompt_development_samples": (recognition_metric_bundle(blind_merged)),
         "decision_and_rejection": {
             "overall_decision_accuracy": metric_record(
-                int((merged.loc[decision_evaluable_mask, "decision_correct"] == True).sum()),  # noqa: E712
+                int((merged.loc[decision_evaluable_mask, "decision_correct"] == True).sum()),
                 int(decision_evaluable_mask.sum()),
             ),
-            "correct_rejection_rate": metric_record(
-                int(correct_rejection_mask.sum()), int(special_mask.sum())
-            ),
+            "correct_rejection_rate": metric_record(int(correct_rejection_mask.sum()), int(special_mask.sum())),
             "unknown_rejection_accuracy": decision_metric_for_expected("unknown"),
             "different_multi_object_accuracy": decision_metric_for_expected("multi_object"),
             "false_positive_rejection_accuracy": decision_metric_for_expected("non_drug"),
@@ -1446,18 +1452,16 @@ def main() -> int:
                 int(core_only_mask.sum()), int(core_correct_mask.sum())
             ),
             "blind_overall_decision_accuracy": metric_record(
-                int((blind_merged.loc[blind_decision_evaluable, "decision_correct"] == True).sum()),  # noqa: E712
+                int((blind_merged.loc[blind_decision_evaluable, "decision_correct"] == True).sum()),
                 int(blind_decision_evaluable.sum()),
             ),
             "blind_correct_rejection_rate": metric_record(
-                int((blind_special_mask & (blind_merged["decision_correct"] == True)).sum()),  # noqa: E712
+                int((blind_special_mask & (blind_merged["decision_correct"] == True)).sum()),
                 int(blind_special_mask.sum()),
             ),
         },
         "technical": {
-            "api_success_rate": metric_record(
-                int(merged["status"].isin(["ok", "format_error"]).sum()), int(len(merged))
-            ),
+            "api_success_rate": metric_record(int(merged["status"].isin(["ok", "format_error"]).sum()), len(merged)),
             "json_format_valid_rate": metric_record(
                 int((merged["status"] == "ok").sum()),
                 int(merged["status"].isin(["ok", "format_error"]).sum()),
@@ -1473,8 +1477,13 @@ def main() -> int:
         "sku_mapping": {
             status: int((merged["sku_mapping_status"] == status).sum())
             for status in [
-                "unique", "ambiguous", "name_not_found", "specification_not_found",
-                "manufacturer_not_found", "no_predicted_name", "gt_unavailable",
+                "unique",
+                "ambiguous",
+                "name_not_found",
+                "specification_not_found",
+                "manufacturer_not_found",
+                "no_predicted_name",
+                "gt_unavailable",
             ]
         },
         "subsets": {},
@@ -1483,10 +1492,10 @@ def main() -> int:
 
     for subset_name, subset_df in merged[gt_available_mask].groupby("subset"):
         evaluable = subset_df["decision_correct"].notna()
-        subset_metrics: Dict[str, Any] = {
-            "sample_count": int(len(subset_df)),
+        subset_metrics: dict[str, Any] = {
+            "sample_count": len(subset_df),
             "decision_accuracy": metric_record(
-                int((subset_df.loc[evaluable, "decision_correct"] == True).sum()),  # noqa: E712
+                int((subset_df.loc[evaluable, "decision_correct"] == True).sum()),
                 int(evaluable.sum()),
             ),
         }
@@ -1505,26 +1514,20 @@ def main() -> int:
     merged.to_csv(merged_path, index=False, encoding="utf-8-sig")
 
     error_mask = merged["error_types"].astype(str).str.contains("E", na=False)
-    merged.loc[error_mask].copy().to_csv(
-        error_cases_path, index=False, encoding="utf-8-sig"
-    )
-    merged.loc[merged["needs_manual_review"]].copy().to_csv(
-        manual_review_path, index=False, encoding="utf-8-sig"
-    )
+    merged.loc[error_mask].copy().to_csv(error_cases_path, index=False, encoding="utf-8-sig")
+    merged.loc[merged["needs_manual_review"]].copy().to_csv(manual_review_path, index=False, encoding="utf-8-sig")
 
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     with metrics_path.open("w", encoding="utf-8") as file_obj:
         json.dump(metrics, file_obj, ensure_ascii=False, indent=2, allow_nan=False)
-    flatten_metrics_for_csv(metrics).to_csv(
-        paper_metrics_path, index=False, encoding="utf-8-sig"
-    )
+    flatten_metrics_for_csv(metrics).to_csv(paper_metrics_path, index=False, encoding="utf-8-sig")
 
     print("评价完成。")
-    print("合并结果：{}".format(merged_path))
-    print("指标文件：{}".format(metrics_path))
-    print("错误样本：{}".format(error_cases_path))
-    print("人工复核样本：{}".format(manual_review_path))
-    print("论文指标表：{}".format(paper_metrics_path))
+    print(f"合并结果：{merged_path}")
+    print(f"指标文件：{metrics_path}")
+    print(f"错误样本：{error_cases_path}")
+    print(f"人工复核样本：{manual_review_path}")
+    print(f"论文指标表：{paper_metrics_path}")
 
     recognition = metrics["recognition"]
     for label, key in [
@@ -1539,9 +1542,7 @@ def main() -> int:
         display = "N/A" if item["value"] is None else "{:.2%}".format(item["value"])
         print("{}：{}（{}/{}）".format(label, display, item["numerator"], item["denominator"]))
 
-    blind_core = metrics[
-        "recognition_blind_excluding_prompt_development_samples"
-    ]["drug_name_core_accuracy"]
+    blind_core = metrics["recognition_blind_excluding_prompt_development_samples"]["drug_name_core_accuracy"]
     print(
         "排除前{}个提示词开发样本后的核心药名准确率：{}（{}/{}）".format(
             development_count,
@@ -1556,21 +1557,24 @@ def main() -> int:
     print(
         "错误确定识别率：{}（{}/{}）".format(
             "N/A" if overconfident["value"] is None else "{:.2%}".format(overconfident["value"]),
-            overconfident["numerator"], overconfident["denominator"],
+            overconfident["numerator"],
+            overconfident["denominator"],
         )
     )
     print(
         "正确拒识率：{}（{}/{}）".format(
             "N/A" if rejection["value"] is None else "{:.2%}".format(rejection["value"]),
-            rejection["numerator"], rejection["denominator"],
+            rejection["numerator"],
+            rejection["denominator"],
         )
     )
     print("需人工复核样本数：{}".format(metrics["sample_counts"]["manual_review_samples"]))
     return 0
 
+
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print("\n评价失败：{}".format(error), file=sys.stderr)
+        print(f"\n评价失败：{error}", file=sys.stderr)
         sys.exit(1)

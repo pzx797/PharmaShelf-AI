@@ -1,4 +1,4 @@
-"""Run prediction with the trained MRS YOLO detector.
+r"""Run prediction with the trained MRS YOLO detector.
 
 By default, this script predicts on MRSDataset's test image directory and saves
 annotated images plus YOLO txt labels under runs/detect/mrs_predict_*.
@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from ultralytics import YOLO
 
+from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_WEIGHTS = ROOT / "runs" / "detect" / "yolo11n_SOSE_MAFF_precision_seed0" / "weights" / "best.pt"
@@ -41,9 +41,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS, help="Path to trained .pt weights.")
     parser.add_argument("--source", type=Path, default=None, help="Image, directory, video, or stream source.")
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA, help="Dataset YAML used when --source is omitted.")
-    parser.add_argument("--split", default="test", choices=("train", "val", "test"), help="Dataset split used by default.")
+    parser.add_argument(
+        "--split", default="test", choices=("train", "val", "test"), help="Dataset split used by default."
+    )
     parser.add_argument("--imgsz", type=int, default=960, help="Inference image size.")
-    parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold for displayed/saved predictions.")
+    parser.add_argument(
+        "--conf", type=float, default=0.25, help="Confidence threshold for displayed/saved predictions."
+    )
     parser.add_argument("--iou", type=float, default=0.7, help="IoU threshold for NMS.")
     parser.add_argument("--max-det", type=int, default=300, help="Maximum detections per image.")
     parser.add_argument("--device", default="0", help="CUDA device id, 'cpu', or comma-separated device ids.")
@@ -51,8 +55,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", default="mrs_predict_yolo11n_SOSE_MAFF_precision_seed0", help="Output run name.")
     parser.add_argument("--save-txt", action="store_true", default=True, help="Save predictions as YOLO txt labels.")
     parser.add_argument("--no-save-txt", action="store_false", dest="save_txt", help="Do not save YOLO txt labels.")
-    parser.add_argument("--save-conf", action="store_true", default=True, help="Include confidence values in txt labels.")
-    parser.add_argument("--no-save-conf", action="store_false", dest="save_conf", help="Do not include confidence values.")
+    parser.add_argument(
+        "--save-conf", action="store_true", default=True, help="Include confidence values in txt labels."
+    )
+    parser.add_argument(
+        "--no-save-conf", action="store_false", dest="save_conf", help="Do not include confidence values."
+    )
     parser.add_argument("--save-crop", action="store_true", help="Save cropped detections.")
     parser.add_argument("--show", action="store_true", help="Display prediction windows.")
     parser.add_argument("--line-width", type=int, default=None, help="Annotation line width.")

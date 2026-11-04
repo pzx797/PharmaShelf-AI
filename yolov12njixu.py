@@ -1,9 +1,6 @@
 from ultralytics import YOLO
 
-LAST_PT = (
-    "/hy-tmp/ultralytics-main/runs/SKU_model_compare/"
-    "SKU110K_YOLOv12n_300e/weights/last.pt"
-)
+LAST_PT = "/hy-tmp/ultralytics-main/runs/SKU_model_compare/SKU110K_YOLOv12n_300e/weights/last.pt"
 
 model = YOLO(LAST_PT)
 
