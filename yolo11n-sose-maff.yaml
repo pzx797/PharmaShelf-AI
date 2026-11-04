@@ -1,0 +1,46 @@
+# Ultralytics YOLO11n + SOSE + MAFF for dense small-object detection.
+# SOSE preserves the original P3/8 width, then full MAFF refines the three Neck outputs before Detect.
+
+nc: 80 # number of classes; overridden by the dataset configuration during training
+scales:
+  # [depth, width, max_channels]
+  n: [0.50, 0.25, 1024]
+
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, Conv, [64, 3, 2]] # 0-P1/2
+  - [-1, 1, Conv, [128, 3, 2]] # 1-P2/4 downsample
+  - [-1, 2, C3k2, [256, False, 0.25]] # 2-P2/4: X2 shallow high-resolution feature
+  - [-1, 1, Conv, [256, 3, 2]] # 3-P3/8 downsample
+  - [-1, 2, C3k2, [512, False, 0.25]] # 4-P3/8: X3 small-object semantic feature
+  - [-1, 1, Conv, [512, 3, 2]] # 5-P4/16
+  - [-1, 2, C3k2, [512, True]] # 6-P4/16
+  - [-1, 1, Conv, [1024, 3, 2]] # 7-P5/32
+  - [-1, 2, C3k2, [1024, True]] # 8-P5/32
+  - [-1, 1, SPPF, [1024, 5]] # 9
+  - [-1, 2, C2PSA, [1024]] # 10-P5/32
+  - [[2, 4], 1, SOSE, [512, 16]] # 11-P3_SOSE: enhanced P3/8 from X2 and X3, same width as original P3/8
+
+head:
+  # Neck begins here. P4/16 and P5/32 retain their original backbone paths.
+  - [10, 1, nn.Upsample, [None, 2, "nearest"]] # 12-start Neck from backbone P5/32
+  - [[-1, 6], 1, Concat, [1]] # 13-cat backbone P4/16
+  - [-1, 2, C3k2, [512, False]] # 14
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]] # 15
+  - [[-1, 11], 1, Concat, [1]] # 16-cat P3_SOSE
+  - [-1, 2, C3k2, [256, False]] # 17-P3/8 Neck output
+
+  - [-1, 1, Conv, [256, 3, 2]] # 18
+  - [[-1, 14], 1, Concat, [1]] # 19-cat head P4/16
+  - [-1, 2, C3k2, [512, False]] # 20-P4/16 Neck output
+
+  - [-1, 1, Conv, [512, 3, 2]] # 21
+  - [[-1, 10], 1, Concat, [1]] # 22-cat backbone P5/32
+  - [-1, 2, C3k2, [1024, True]] # 23-P5/32 Neck output
+
+  - [[17, 20, 23], 1, MAFF, [256, "p3"]] # 24-P3_MAFF: align P3/P4/P5 to P3/8
+  - [[17, 20, 23], 1, MAFF, [512, "p4"]] # 25-P4_MAFF: align P3/P4/P5 to P4/16
+  - [[17, 20, 23], 1, MAFF, [1024, "p5"]] # 26-P5_MAFF: align P3/P4/P5 to P5/32
+
+  - [[24, 25, 26], 1, Detect, [nc]] # 27-Detect(P3_MAFF, P4_MAFF, P5_MAFF)

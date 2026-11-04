@@ -1,0 +1,16 @@
+﻿PPT 标题：RAG 实验中的药品 SKU 知识库
+
+介绍文字：
+本实验使用本地药品 SKU 知识库，包含 2,019 个有效商品 SKU、17 类商品和 14 个结构化字段，涵盖名称、规格、厂家、条码及检索线索。系统根据图像识别结果检索 Top-5 候选，再由 Qwen 结合图片复核，确定 SKU 并回填标准商品信息。
+
+讲解一句话：
+知识库相当于一份标准商品档案，帮助模型将图像中的商品线索匹配到具体 SKU。
+
+核对依据：
+知识库：rag_knowledge_base/sku_kb_cleaned.xlsx（工作表 sku_kb_cleaned）
+实际实验配置：qwen37plus_rag_experiment/runs/qwen37plus_rag_v1/config.yaml
+实际索引元数据：qwen37plus_rag_experiment/runs/qwen37plus_rag_v1/index/index_metadata.json
+索引构建逻辑：qwen37plus_rag_experiment/02_build_rag_index.py
+推理逻辑：qwen37plus_rag_experiment/03_run_qwen37plus_rag.py
+
+数据口径：原表 2,020 条记录，1 条缺少 SKU 被跳过；2,019 个有效 SKU 均唯一。17 类商品按有效 SKU 统计。图中示例逐字段取自知识库原记录。检索和推理不使用人工真值。这里描述知识库作用与实验方法，不代表已验证的准确率提升。
