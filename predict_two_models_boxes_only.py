@@ -7,15 +7,11 @@ import yaml
 
 from ultralytics import YOLO
 
-
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DATA = ROOT / "MRSDataset.yaml"
 DEFAULT_MODELS = (
-    ROOT
-    / "runs/Fine-tune_MSA-YOLO_sku_to_mrs/"
-    "MSA_SKU_to_MRS_stage2_seed3/weights/best.pt",
-    Path(r"E:\CODE\ultralytics-main\runs\multiseed_baseline")
-    / "baseline_yolo11n_seed3/weights/best.pt",
+    ROOT / "runs/Fine-tune_MSA-YOLO_sku_to_mrs/MSA_SKU_to_MRS_stage2_seed3/weights/best.pt",
+    Path(r"E:\CODE\ultralytics-main\runs\multiseed_baseline") / "baseline_yolo11n_seed3/weights/best.pt",
 )
 
 
