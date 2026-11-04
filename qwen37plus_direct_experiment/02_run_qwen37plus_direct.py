@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Run Qwen3.7-Plus direct recognition on all prepared drug crop images.
 
 Run order:
@@ -21,11 +20,10 @@ Dependencies:
 Python compatibility: Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import argparse
 import base64
-import csv
 import json
 import mimetypes
 import os
@@ -35,22 +33,17 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     import pandas as pd
     import yaml
     from openai import OpenAI
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行：pip install -U openai pandas pyyaml\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install -U openai pandas pyyaml\n原始错误：{exc}")
 
 
-OUTPUT_ROOT = Path(
-    r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment"
-)
+OUTPUT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment")
 RUN_NAME = "qwen37plus_direct_v1"
 DEFAULT_CONFIG_PATH = OUTPUT_ROOT / "runs" / RUN_NAME / "config.yaml"
 
@@ -88,11 +81,9 @@ def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
+def read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise FileNotFoundError(
-            "未找到配置文件：{}。请先运行01_prepare_direct_experiment.py".format(path)
-        )
+        raise FileNotFoundError(f"未找到配置文件：{path}。请先运行01_prepare_direct_experiment.py")
     with path.open("r", encoding="utf-8") as file_obj:
         data = yaml.safe_load(file_obj)
     if not isinstance(data, dict):
@@ -102,7 +93,7 @@ def read_yaml(path: Path) -> Dict[str, Any]:
 
 def read_text(path: Path) -> str:
     if not path.exists():
-        raise FileNotFoundError("未找到提示词文件：{}".format(path))
+        raise FileNotFoundError(f"未找到提示词文件：{path}")
     return path.read_text(encoding="utf-8").strip()
 
 
@@ -112,7 +103,7 @@ def append_line(path: Path, text: str) -> None:
         file_obj.write(text.rstrip() + "\n")
 
 
-def append_jsonl(path: Path, payload: Dict[str, Any]) -> None:
+def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     append_line(path, json.dumps(payload, ensure_ascii=False, default=str))
 
 
@@ -139,17 +130,15 @@ def image_to_data_url(image_path: Path) -> str:
         }
         mime_type = fallback.get(suffix)
     if not mime_type:
-        raise ValueError("不支持的图片格式：{}".format(image_path))
+        raise ValueError(f"不支持的图片格式：{image_path}")
 
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
-    return "data:{};base64,{}".format(mime_type, encoded)
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def strip_code_fence(text: str) -> str:
     cleaned = text.strip()
-    fence_match = re.fullmatch(
-        r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.IGNORECASE | re.DOTALL
-    )
+    fence_match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.IGNORECASE | re.DOTALL)
     if fence_match:
         return fence_match.group(1).strip()
     return cleaned
@@ -187,7 +176,7 @@ def extract_first_json_object(text: str) -> str:
     raise ValueError("JSON对象括号不完整")
 
 
-def parse_json_answer(content: str) -> Dict[str, Any]:
+def parse_json_answer(content: str) -> dict[str, Any]:
     if not isinstance(content, str) or not content.strip():
         raise ValueError("模型回答为空")
 
@@ -202,7 +191,7 @@ def parse_json_answer(content: str) -> Dict[str, Any]:
     return parsed
 
 
-def nullable_text(value: Any) -> Optional[str]:
+def nullable_text(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
@@ -211,7 +200,7 @@ def nullable_text(value: Any) -> Optional[str]:
     return text
 
 
-def normalize_string_list(value: Any) -> List[str]:
+def normalize_string_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -225,7 +214,7 @@ def normalize_string_list(value: Any) -> List[str]:
     return [] if text is None else [text]
 
 
-def normalize_confidence(value: Any) -> Optional[float]:
+def normalize_confidence(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
@@ -237,8 +226,8 @@ def normalize_confidence(value: Any) -> Optional[float]:
     return max(0.0, min(1.0, confidence))
 
 
-def validate_prediction(parsed: Dict[str, Any], sample_id: str) -> Dict[str, Any]:
-    result: Dict[str, Any] = {}
+def validate_prediction(parsed: dict[str, Any], sample_id: str) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     returned_sample_id = nullable_text(parsed.get("sample_id"))
     result["sample_id"] = sample_id
     result["sample_id_returned"] = returned_sample_id
@@ -278,7 +267,7 @@ def validate_prediction(parsed: Dict[str, Any], sample_id: str) -> Dict[str, Any
     return result
 
 
-def usage_values(completion: Any) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+def usage_values(completion: Any) -> tuple[int | None, int | None, int | None, int | None]:
     usage = getattr(completion, "usage", None)
     if usage is None:
         return None, None, None, None
@@ -304,14 +293,14 @@ def read_existing_predictions(path: Path) -> pd.DataFrame:
     try:
         frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     except Exception as exc:
-        raise RuntimeError("读取已有预测表失败：{}".format(exc))
+        raise RuntimeError(f"读取已有预测表失败：{exc}")
     for column in PREDICTION_COLUMNS:
         if column not in frame.columns:
             frame[column] = ""
     return frame[PREDICTION_COLUMNS]
 
 
-def write_predictions_atomic(path: Path, rows: List[Dict[str, Any]]) -> None:
+def write_predictions_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     frame = pd.DataFrame(rows, columns=PREDICTION_COLUMNS)
@@ -327,7 +316,7 @@ def completed_sample_ids(frame: pd.DataFrame) -> set:
     return set(frame.loc[mask, "sample_id"].astype(str))
 
 
-def upsert_prediction(rows: List[Dict[str, Any]], new_row: Dict[str, Any]) -> None:
+def upsert_prediction(rows: list[dict[str, Any]], new_row: dict[str, Any]) -> None:
     sample_id = str(new_row["sample_id"])
     for index, row in enumerate(rows):
         if str(row.get("sample_id", "")) == sample_id:
@@ -336,7 +325,7 @@ def upsert_prediction(rows: List[Dict[str, Any]], new_row: Dict[str, Any]) -> No
     rows.append(new_row)
 
 
-def blank_prediction_row(run_id: str, sample_id: str, model: str) -> Dict[str, Any]:
+def blank_prediction_row(run_id: str, sample_id: str, model: str) -> dict[str, Any]:
     row = {column: "" for column in PREDICTION_COLUMNS}
     row.update(
         {
@@ -351,7 +340,7 @@ def blank_prediction_row(run_id: str, sample_id: str, model: str) -> Dict[str, A
 
 def get_retry_delay(attempt: int) -> float:
     # Exponential backoff with small jitter: 2, 4, 8... seconds.
-    return min(30.0, (2.0 ** attempt) + random.uniform(0.0, 0.5))
+    return min(30.0, (2.0**attempt) + random.uniform(0.0, 0.5))
 
 
 def main() -> int:
@@ -388,15 +377,13 @@ def main() -> int:
     user_prompt_path = Path(paths["user_prompt_path"])
 
     if not manifest_path.exists():
-        raise FileNotFoundError("未找到输入清单：{}".format(manifest_path))
+        raise FileNotFoundError(f"未找到输入清单：{manifest_path}")
 
-    manifest = pd.read_csv(
-        manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
+    manifest = pd.read_csv(manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     required_manifest_columns = {"sample_id", "crop_path", "include_in_inference"}
     missing_columns = required_manifest_columns - set(manifest.columns)
     if missing_columns:
-        raise KeyError("input_manifest.csv缺少字段：{}".format(sorted(missing_columns)))
+        raise KeyError(f"input_manifest.csv缺少字段：{sorted(missing_columns)}")
 
     manifest = manifest[manifest["include_in_inference"].astype(str) != "0"].copy()
     manifest = manifest.sort_values("sample_id").reset_index(drop=True)
@@ -407,10 +394,7 @@ def main() -> int:
     api_key_env = str(api_cfg["api_key_env"])
     api_key = os.getenv(api_key_env)
     if not api_key:
-        raise EnvironmentError(
-            "未读取到环境变量{}。PowerShell临时设置示例：\n"
-            "$env:{}=\"你的API-Key\"".format(api_key_env, api_key_env)
-        )
+        raise OSError(f'未读取到环境变量{api_key_env}。PowerShell临时设置示例：\n$env:{api_key_env}="你的API-Key"')
 
     client = OpenAI(
         api_key=api_key,
@@ -424,12 +408,10 @@ def main() -> int:
     temperature = float(api_cfg.get("temperature", 0.1))
     max_tokens = int(api_cfg.get("max_tokens", 1024))
     max_retries = int(api_cfg.get("max_retries", 3))
-    vl_high_resolution_images = bool(
-        api_cfg.get("vl_high_resolution_images", True)
-    )
+    vl_high_resolution_images = bool(api_cfg.get("vl_high_resolution_images", True))
 
     existing = read_existing_predictions(predictions_path)
-    prediction_rows: List[Dict[str, Any]] = existing.to_dict(orient="records")
+    prediction_rows: list[dict[str, Any]] = existing.to_dict(orient="records")
     completed = set() if args.force else completed_sample_ids(existing)
 
     pending = manifest[~manifest["sample_id"].isin(completed)].copy()
@@ -447,9 +429,9 @@ def main() -> int:
         "temperature": temperature,
         "max_tokens": max_tokens,
         "vl_high_resolution_images": vl_high_resolution_images,
-        "manifest_total": int(len(manifest)),
-        "already_completed": int(len(completed)),
-        "pending_this_run": int(len(pending)),
+        "manifest_total": len(manifest),
+        "already_completed": len(completed),
+        "pending_this_run": len(pending),
         "force": bool(args.force),
     }
     append_line(run_info_log, json.dumps(run_metadata, ensure_ascii=False))
@@ -458,11 +440,11 @@ def main() -> int:
         print("没有待处理样本。现有预测结果已覆盖输入清单。")
         return 0
 
-    print("本次运行ID：{}".format(run_id))
-    print("待处理样本：{}".format(len(pending)))
-    print("模型：{}".format(model))
-    print("思考模式：{}".format(enable_thinking))
-    print("高分辨率图像：{}".format(vl_high_resolution_images))
+    print(f"本次运行ID：{run_id}")
+    print(f"待处理样本：{len(pending)}")
+    print(f"模型：{model}")
+    print(f"思考模式：{enable_thinking}")
+    print(f"高分辨率图像：{vl_high_resolution_images}")
 
     success_count = 0
     format_error_count = 0
@@ -473,7 +455,7 @@ def main() -> int:
     for position, record in enumerate(pending.to_dict(orient="records"), start=1):
         sample_id = str(record["sample_id"])
         image_path = Path(record["crop_path"])
-        print("[{}/{}] {}".format(position, total_pending, sample_id), end=" ", flush=True)
+        print(f"[{position}/{total_pending}] {sample_id}", end=" ", flush=True)
 
         if not image_path.exists() or not image_path.is_file():
             row = blank_prediction_row(run_id, sample_id, model)
@@ -481,14 +463,14 @@ def main() -> int:
                 {
                     "status": "input_error",
                     "decision": "api_error",
-                    "parse_error": "图片不存在：{}".format(image_path),
+                    "parse_error": f"图片不存在：{image_path}",
                 }
             )
             upsert_prediction(prediction_rows, row)
             write_predictions_atomic(predictions_path, prediction_rows)
             append_line(
                 api_errors_log,
-                "{}\t{}\tinput_error\t{}".format(now_iso(), sample_id, image_path),
+                f"{now_iso()}\t{sample_id}\tinput_error\t{image_path}",
             )
             input_error_count += 1
             print("输入错误")
@@ -509,7 +491,7 @@ def main() -> int:
             write_predictions_atomic(predictions_path, prediction_rows)
             append_line(
                 api_errors_log,
-                "{}\t{}\tinput_error\t{}".format(now_iso(), sample_id, exc),
+                f"{now_iso()}\t{sample_id}\tinput_error\t{exc}",
             )
             input_error_count += 1
             print("输入错误")
@@ -556,14 +538,7 @@ def main() -> int:
                 last_error = exc
                 append_line(
                     api_errors_log,
-                    "{}\t{}\tattempt={}/{}\t{}: {}".format(
-                        now_iso(),
-                        sample_id,
-                        attempt,
-                        max_retries,
-                        type(exc).__name__,
-                        exc,
-                    ),
+                    f"{now_iso()}\t{sample_id}\tattempt={attempt}/{max_retries}\t{type(exc).__name__}: {exc}",
                 )
                 if attempt < max_retries:
                     time.sleep(get_retry_delay(attempt))
@@ -593,9 +568,7 @@ def main() -> int:
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         response_id = getattr(completion, "id", None)
         response_model = getattr(completion, "model", None) or model
-        prompt_tokens, completion_tokens, total_tokens, reasoning_tokens = usage_values(
-            completion
-        )
+        prompt_tokens, completion_tokens, total_tokens, reasoning_tokens = usage_values(completion)
 
         # Deliberately omit reasoning_content from saved artifacts.
         raw_record = {
@@ -625,13 +598,9 @@ def main() -> int:
                 "response_id": response_id or "",
                 "finish_reason": finish_reason or "",
                 "prompt_tokens": prompt_tokens if prompt_tokens is not None else "",
-                "completion_tokens": completion_tokens
-                if completion_tokens is not None
-                else "",
+                "completion_tokens": completion_tokens if completion_tokens is not None else "",
                 "total_tokens": total_tokens if total_tokens is not None else "",
-                "reasoning_tokens": reasoning_tokens
-                if reasoning_tokens is not None
-                else "",
+                "reasoning_tokens": reasoning_tokens if reasoning_tokens is not None else "",
                 "latency_seconds": latency_seconds,
                 "attempt_count": attempt_used,
             }
@@ -648,20 +617,11 @@ def main() -> int:
                     "pred_generic_name": validated["pred_generic_name"] or "",
                     "pred_specification": validated["pred_specification"] or "",
                     "pred_manufacturer": validated["pred_manufacturer"] or "",
-                    "pred_barcode_or_approval_no": validated[
-                        "pred_barcode_or_approval_no"
-                    ]
-                    or "",
+                    "pred_barcode_or_approval_no": validated["pred_barcode_or_approval_no"] or "",
                     "pred_sku_id": "",
-                    "confidence": ""
-                    if validated["confidence"] is None
-                    else validated["confidence"],
-                    "visible_text_json": json.dumps(
-                        validated["visible_text"], ensure_ascii=False
-                    ),
-                    "package_features_json": json.dumps(
-                        validated["package_features"], ensure_ascii=False
-                    ),
+                    "confidence": "" if validated["confidence"] is None else validated["confidence"],
+                    "visible_text_json": json.dumps(validated["visible_text"], ensure_ascii=False),
+                    "package_features_json": json.dumps(validated["package_features"], ensure_ascii=False),
                     "reason": validated["reason"] or "",
                     "parse_error": "",
                 }
@@ -673,7 +633,7 @@ def main() -> int:
                 {
                     "status": "format_error",
                     "decision": "format_error",
-                    "parse_error": "{}: {}".format(type(exc).__name__, exc),
+                    "parse_error": f"{type(exc).__name__}: {exc}",
                 }
             )
             format_error_count += 1
@@ -695,11 +655,11 @@ def main() -> int:
     append_line(run_info_log, json.dumps(finish_metadata, ensure_ascii=False))
 
     print("\n本次运行结束。")
-    print("成功：{}".format(success_count))
-    print("格式错误：{}".format(format_error_count))
-    print("API失败：{}".format(api_error_count))
-    print("输入错误：{}".format(input_error_count))
-    print("预测表：{}".format(predictions_path))
+    print(f"成功：{success_count}")
+    print(f"格式错误：{format_error_count}")
+    print(f"API失败：{api_error_count}")
+    print(f"输入错误：{input_error_count}")
+    print(f"预测表：{predictions_path}")
     print("\n确认没有api_error后，运行：python 03_evaluate_direct_results.py")
     return 0
 
@@ -711,5 +671,5 @@ if __name__ == "__main__":
         print("\n用户中断。已完成结果已保存，可直接重新运行以断点续跑。")
         sys.exit(130)
     except Exception as error:
-        print("\n运行失败：{}".format(error), file=sys.stderr)
+        print(f"\n运行失败：{error}", file=sys.stderr)
         sys.exit(1)

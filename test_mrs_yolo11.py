@@ -14,8 +14,9 @@ import argparse
 from pathlib import Path
 from typing import Iterable
 
-from ultralytics import YOLO
+from typing_extensions import Self
 
+from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_WEIGHTS = ROOT / "runs" / "detect" / "yolo11n_SOSE_MAFF_precision_seed0" / "weights" / "best.pt"
@@ -28,7 +29,7 @@ class SerialPool:
     def __init__(self, *_args, **_kwargs):
         pass
 
-    def __enter__(self) -> "SerialPool":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args) -> None:

@@ -5,11 +5,10 @@
 # 先按 Ctrl + b，松开，再按 d
 # tmux ls
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from ultralytics import YOLO
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODEL_CFG = PROJECT_ROOT / "yolo11n-sose-maff.yaml"
@@ -28,8 +27,8 @@ SAVE_ROOT = Path(r"/hy-tmp/ultralytics-main/runs/SKU_model_compare")
 def transfer_yolo11n_to_sose_maff(model: YOLO, weights: Path) -> int:
     """Transfer YOLO11n weights while leaving SOSE and MAFF layers randomly initialized.
 
-    SOSE is inserted at layer 11, moving original layers 11-22 to 12-23.
-    MAFF is inserted before Detect at layers 24-26, moving original Detect layer 23 to 27.
+    SOSE is inserted at layer 11, moving original layers 11-22 to 12-23. MAFF is inserted before Detect at layers 24-26,
+    moving original Detect layer 23 to 27.
     """
     if not weights.is_file():
         raise FileNotFoundError(f"COCO pretrained weight file was not found: {weights}")
@@ -66,39 +65,39 @@ def transfer_yolo11n_to_sose_maff(model: YOLO, weights: Path) -> int:
 
 
 # 基础训练参数
-COMMON_TRAIN_ARGS = dict(
-    data=DATA_CFG,
-    workers=0,
-    imgsz=960,
-    batch=16,
-    device=0,
-    optimizer="SGD",
-    lr0=0.01,
-    lrf=0.01,
-    momentum=0.937,
-    weight_decay=0.0005,
-    warmup_epochs=3.0,
-    warmup_bias_lr=0.01,
-    cos_lr=False,
-    mosaic=1.0,
-    mixup=0.0,
-    copy_paste=0.0,
-    erasing=0.0,
-    degrees=5.0,
-    translate=0.05,
-    scale=0.15,
-    shear=0.0,
-    perspective=0.0,
-    fliplr=0.5,
-    flipud=0.0,
-    hsv_h=0.015,
-    hsv_s=0.4,
-    hsv_v=0.3,
-    close_mosaic=50,
-    patience=0,
-    pretrained=False,
-    project=str(SAVE_ROOT),
-)
+COMMON_TRAIN_ARGS = {
+    "data": DATA_CFG,
+    "workers": 0,
+    "imgsz": 960,
+    "batch": 16,
+    "device": 0,
+    "optimizer": "SGD",
+    "lr0": 0.01,
+    "lrf": 0.01,
+    "momentum": 0.937,
+    "weight_decay": 0.0005,
+    "warmup_epochs": 3.0,
+    "warmup_bias_lr": 0.01,
+    "cos_lr": False,
+    "mosaic": 1.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "erasing": 0.0,
+    "degrees": 5.0,
+    "translate": 0.05,
+    "scale": 0.15,
+    "shear": 0.0,
+    "perspective": 0.0,
+    "fliplr": 0.5,
+    "flipud": 0.0,
+    "hsv_h": 0.015,
+    "hsv_s": 0.4,
+    "hsv_v": 0.3,
+    "close_mosaic": 50,
+    "patience": 0,
+    "pretrained": False,
+    "project": str(SAVE_ROOT),
+}
 
 
 def get_metrics(metrics):
@@ -115,12 +114,12 @@ def get_metrics(metrics):
 if __name__ == "__main__":
     SAVE_ROOT.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("Training MRS (YOLO11n-SOSE-MAFF) on SKU-110K")
     print(f"Dataset: {DATA_CFG}")
     print(f"Save root: {SAVE_ROOT}")
     print(f"Seed: {SEED}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     # 1. 初始化模型并迁移 YOLO11n 预训练权重
     model = YOLO(MODEL_CFG)
@@ -164,9 +163,9 @@ if __name__ == "__main__":
     final_model = YOLO(stage2_best)
 
     # 4. 在官方 val 集上评估
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("Evaluating final best.pt on SKU-110K VAL split")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     val_metrics_obj = final_model.val(
         data=str(DATA_CFG),
@@ -182,9 +181,9 @@ if __name__ == "__main__":
     val_result = get_metrics(val_metrics_obj)
 
     # 5. 在官方 test 集上测试
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("Testing final best.pt on SKU-110K TEST split")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     test_metrics_obj = final_model.val(
         data=str(DATA_CFG),
@@ -200,9 +199,9 @@ if __name__ == "__main__":
     test_result = get_metrics(test_metrics_obj)
 
     # 6. 控制台输出最终结果
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("FINAL RESULTS")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     print(
         f"VAL : "

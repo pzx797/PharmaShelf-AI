@@ -1,5 +1,4 @@
- # -*- coding: utf-8 -*-
-"""构建药品知识库的本地RAG检索索引。
+"""构建药品知识库的本地RAG检索索引。.
 
 检索方法：
 - 使用字符级TF-IDF表示中文药品名称、规格、厂家、别名和条码等字段；
@@ -17,7 +16,7 @@
 兼容：Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import argparse
 import json
@@ -27,7 +26,7 @@ import sys
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 try:
     import joblib
@@ -36,11 +35,7 @@ try:
     import yaml
     from sklearn.feature_extraction.text import TfidfVectorizer
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行："
-        "pip install pandas openpyxl pyyaml scikit-learn joblib\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install pandas openpyxl pyyaml scikit-learn joblib\n原始错误：{exc}")
 
 
 OUTPUT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main\qwen37plus_rag_experiment")
@@ -66,16 +61,14 @@ KB_REQUIRED_COLUMNS = {
 # 通用辅助函数
 # -----------------------------------------------------------------------------
 def now_iso() -> str:
-    """返回带本地时区的ISO时间字符串。"""
+    """返回带本地时区的ISO时间字符串。."""
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
-    """读取YAML配置文件。"""
+def read_yaml(path: Path) -> dict[str, Any]:
+    """读取YAML配置文件。."""
     if not path.exists():
-        raise FileNotFoundError(
-            "未找到配置文件：{}。请先运行01_prepare_rag_experiment.py".format(path)
-        )
+        raise FileNotFoundError(f"未找到配置文件：{path}。请先运行01_prepare_rag_experiment.py")
     with path.open("r", encoding="utf-8") as file_obj:
         config = yaml.safe_load(file_obj)
     if not isinstance(config, dict):
@@ -83,8 +76,8 @@ def read_yaml(path: Path) -> Dict[str, Any]:
     return config
 
 
-def write_json(path: Path, payload: Dict[str, Any]) -> None:
-    """以UTF-8写入格式化JSON文件。"""
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """以UTF-8写入格式化JSON文件。."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -93,7 +86,7 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 
 def clean_cell(value: Any) -> str:
-    """将Excel单元格转换为稳定文本，避免条码和SKU出现科学计数法。"""
+    """将Excel单元格转换为稳定文本，避免条码和SKU出现科学计数法。."""
     if value is None:
         return ""
     try:
@@ -108,7 +101,7 @@ def clean_cell(value: Any) -> str:
         return str(value)
     if isinstance(value, float):
         if math.isfinite(value) and value.is_integer():
-            return "{:.0f}".format(value)
+            return f"{value:.0f}"
         return format(value, "g")
 
     text = str(value).strip()
@@ -120,14 +113,14 @@ def clean_cell(value: Any) -> str:
         try:
             number = float(text)
             if number.is_integer():
-                return "{:.0f}".format(number)
+                return f"{number:.0f}"
         except ValueError:
             pass
     return text
 
 
 def normalize_text(value: Any) -> str:
-    """执行字符标准化，用于精确匹配和包含匹配。"""
+    """执行字符标准化，用于精确匹配和包含匹配。."""
     text = clean_cell(value)
     if not text:
         return ""
@@ -139,7 +132,7 @@ def normalize_text(value: Any) -> str:
 
 
 def combine_weighted_fields(row: pd.Series) -> str:
-    """按字段重要性构造知识库检索文本。"""
+    """按字段重要性构造知识库检索文本。."""
     drug_name = clean_cell(row.get("drug_name"))
     generic_name = clean_cell(row.get("generic_name"))
     raw_product_name = clean_cell(row.get("raw_product_name"))
@@ -179,8 +172,8 @@ def combine_weighted_fields(row: pd.Series) -> str:
     return " ".join(part for part in parts if part)
 
 
-def build_record(row: pd.Series, kb_row_index: int) -> Dict[str, str]:
-    """将知识库行转换为推理阶段可用的标准记录。"""
+def build_record(row: pd.Series, kb_row_index: int) -> dict[str, str]:
+    """将知识库行转换为推理阶段可用的标准记录。."""
     fields = [
         "sku_id",
         "barcode",
@@ -210,7 +203,7 @@ def build_record(row: pd.Series, kb_row_index: int) -> Dict[str, str]:
 
 
 def main() -> int:
-    """读取知识库、训练TF-IDF向量器并保存索引。"""
+    """读取知识库、训练TF-IDF向量器并保存索引。."""
     parser = argparse.ArgumentParser(description="构建药品知识库RAG检索索引")
     parser.add_argument(
         "--config",
@@ -232,9 +225,9 @@ def main() -> int:
     sheet_name = config.get("data", {}).get("knowledge_base_sheet", 0)
 
     if not kb_path.exists():
-        raise FileNotFoundError("未找到知识库：{}".format(kb_path))
+        raise FileNotFoundError(f"未找到知识库：{kb_path}")
 
-    print("正在读取知识库：{}".format(kb_path))
+    print(f"正在读取知识库：{kb_path}")
     kb_df = pd.read_excel(
         kb_path,
         sheet_name=sheet_name,
@@ -250,7 +243,7 @@ def main() -> int:
             )
         )
 
-    records: List[Dict[str, str]] = []
+    records: list[dict[str, str]] = []
     skipped_missing_sku = 0
     for dataframe_index, row in kb_df.iterrows():
         record = build_record(row, int(dataframe_index))
@@ -267,14 +260,12 @@ def main() -> int:
     sku_values = [record["sku_id"] for record in records]
     duplicate_skus = pd.Series(sku_values)[pd.Series(sku_values).duplicated()].tolist()
     if duplicate_skus:
-        raise ValueError(
-            "知识库sku_id存在重复，例如：{}".format(duplicate_skus[:10])
-        )
+        raise ValueError(f"知识库sku_id存在重复，例如：{duplicate_skus[:10]}")
 
     texts = [record["retrieval_text"] for record in records]
     ngram_range = tuple(int(value) for value in tfidf_cfg["ngram_range"])
 
-    print("正在构建字符级TF-IDF索引，记录数：{}".format(len(records)))
+    print(f"正在构建字符级TF-IDF索引，记录数：{len(records)}")
     vectorizer = TfidfVectorizer(
         analyzer=str(tfidf_cfg.get("analyzer", "char")),
         ngram_range=ngram_range,
@@ -308,11 +299,11 @@ def main() -> int:
         "created_at": now_iso(),
         "method": retrieval_cfg.get("method", "char_tfidf_field_boost_v1"),
         "knowledge_base_path": str(kb_path),
-        "knowledge_base_rows": int(len(kb_df)),
-        "indexed_rows": int(len(records)),
+        "knowledge_base_rows": len(kb_df),
+        "indexed_rows": len(records),
         "skipped_missing_sku": int(skipped_missing_sku),
         "matrix_shape": [int(matrix.shape[0]), int(matrix.shape[1])],
-        "vocabulary_size": int(len(vectorizer.vocabulary_)),
+        "vocabulary_size": len(vectorizer.vocabulary_),
         "ngram_range": list(ngram_range),
         "top_k": int(retrieval_cfg.get("top_k", 5)),
         "ground_truth_used": False,
@@ -322,11 +313,11 @@ def main() -> int:
     write_json(metadata_path, metadata)
 
     print("\n索引构建完成。")
-    print("有效知识库记录：{}".format(len(records)))
-    print("跳过缺失SKU记录：{}".format(skipped_missing_sku))
-    print("向量矩阵形状：{}".format(matrix.shape))
-    print("索引文件：{}".format(index_path))
-    print("记录文件：{}".format(records_path))
+    print(f"有效知识库记录：{len(records)}")
+    print(f"跳过缺失SKU记录：{skipped_missing_sku}")
+    print(f"向量矩阵形状：{matrix.shape}")
+    print(f"索引文件：{index_path}")
+    print(f"记录文件：{records_path}")
     print("\n下一步运行：python 03_run_qwen37plus_rag.py --limit 3")
     return 0
 
@@ -335,5 +326,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print("\n索引构建失败：{}".format(error), file=sys.stderr)
+        print(f"\n索引构建失败：{error}", file=sys.stderr)
         sys.exit(1)
