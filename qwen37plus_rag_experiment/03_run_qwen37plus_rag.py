@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""运行Qwen3.7-Plus药品裁剪图RAG识别实验。
+"""运行Qwen3.7-Plus药品裁剪图RAG识别实验。.
 
 运行顺序：
     1. python 01_prepare_rag_experiment.py
@@ -26,7 +25,7 @@
 兼容：Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import argparse
 import base64
@@ -41,7 +40,7 @@ import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Sequence
 
 try:
     import joblib
@@ -51,9 +50,7 @@ try:
     from openai import OpenAI
 except ImportError as exc:
     raise SystemExit(
-        "缺少依赖。请先执行："
-        "pip install -U openai pandas pyyaml scikit-learn joblib numpy\n"
-        "原始错误：{}".format(exc)
+        f"缺少依赖。请先执行：pip install -U openai pandas pyyaml scikit-learn joblib numpy\n原始错误：{exc}"
     )
 
 
@@ -90,16 +87,12 @@ NON_PRODUCT_TEXT_PATTERNS = (
     r"^益丰大药房$",
     r"^大参林$",
     r"^海王星辰$",
-
     # 明确带有货币符号的价格。
     r"^[¥￥]\d+(?:\.\d{1,2})?$",
-
     # 明确带有“元”的价格。
     r"^\d+(?:\.\d{1,2})?元$",
-
     # 带有价格语义前缀的文字。
     r"^(?:会员价|零售价|促销价|活动价|售价|价格)[：:]?[¥￥]?\d+(?:\.\d{1,2})?元?$",
-
     r"^(会员价|零售价|促销价|活动价|售价|价格)$",
     r"^(会员|促销|特价|活动|扫码购)$",
 )
@@ -163,16 +156,14 @@ PREDICTION_COLUMNS = [
 # 文件与文本辅助函数
 # -----------------------------------------------------------------------------
 def now_iso() -> str:
-    """返回带本地时区的ISO时间字符串。"""
+    """返回带本地时区的ISO时间字符串。."""
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
-    """读取YAML配置文件。"""
+def read_yaml(path: Path) -> dict[str, Any]:
+    """读取YAML配置文件。."""
     if not path.exists():
-        raise FileNotFoundError(
-            "未找到配置文件：{}。请先运行01_prepare_rag_experiment.py".format(path)
-        )
+        raise FileNotFoundError(f"未找到配置文件：{path}。请先运行01_prepare_rag_experiment.py")
     with path.open("r", encoding="utf-8") as file_obj:
         config = yaml.safe_load(file_obj)
     if not isinstance(config, dict):
@@ -181,26 +172,26 @@ def read_yaml(path: Path) -> Dict[str, Any]:
 
 
 def read_text(path: Path) -> str:
-    """读取UTF-8文本文件。"""
+    """读取UTF-8文本文件。."""
     if not path.exists():
-        raise FileNotFoundError("未找到文本文件：{}".format(path))
+        raise FileNotFoundError(f"未找到文本文件：{path}")
     return path.read_text(encoding="utf-8").strip()
 
 
 def append_line(path: Path, text: str) -> None:
-    """向日志文件追加一行文本。"""
+    """向日志文件追加一行文本。."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as file_obj:
         file_obj.write(text.rstrip() + "\n")
 
 
-def append_jsonl(path: Path, payload: Dict[str, Any]) -> None:
-    """向JSONL文件追加一条JSON记录。"""
+def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    """向JSONL文件追加一条JSON记录。."""
     append_line(path, json.dumps(payload, ensure_ascii=False))
 
 
 def safe_json_value(value: Any) -> Any:
-    """将NumPy和pandas标量转换为可JSON序列化的Python值。"""
+    """将NumPy和pandas标量转换为可JSON序列化的Python值。."""
     if value is None:
         return None
     try:
@@ -214,7 +205,7 @@ def safe_json_value(value: Any) -> Any:
 
 
 def clean_cell(value: Any) -> str:
-    """将表格值转换为稳定字符串，避免SKU和条码出现小数后缀。"""
+    """将表格值转换为稳定字符串，避免SKU和条码出现小数后缀。."""
     if value is None:
         return ""
     try:
@@ -228,7 +219,7 @@ def clean_cell(value: Any) -> str:
         return str(value)
     if isinstance(value, float):
         if math.isfinite(value) and value.is_integer():
-            return "{:.0f}".format(value)
+            return f"{value:.0f}"
         return format(value, "g")
     text = str(value).strip()
     if text.casefold() in {"nan", "none", "null"}:
@@ -239,7 +230,7 @@ def clean_cell(value: Any) -> str:
 
 
 def normalize_text(value: Any) -> str:
-    """标准化文本，用于字段精确匹配和包含匹配。"""
+    """标准化文本，用于字段精确匹配和包含匹配。."""
     text = clean_cell(value)
     if not text:
         return ""
@@ -251,12 +242,12 @@ def normalize_text(value: Any) -> str:
 
 
 def normalize_sku(value: Any) -> str:
-    """标准化SKU编号。"""
+    """标准化SKU编号。."""
     return normalize_text(value)
 
 
 def image_to_data_url(image_path: Path) -> str:
-    """将本地图片转换为API可接受的Base64 data URL。"""
+    """将本地图片转换为API可接受的Base64 data URL。."""
     mime_type, _ = mimetypes.guess_type(str(image_path))
     if not mime_type or not mime_type.startswith("image/"):
         suffix_map = {
@@ -268,25 +259,25 @@ def image_to_data_url(image_path: Path) -> str:
         }
         mime_type = suffix_map.get(image_path.suffix.lower())
     if not mime_type:
-        raise ValueError("无法确定图片MIME类型：{}".format(image_path))
+        raise ValueError(f"无法确定图片MIME类型：{image_path}")
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
-    return "data:{};base64,{}".format(mime_type, encoded)
+    return f"data:{mime_type};base64,{encoded}"
 
 
 # -----------------------------------------------------------------------------
 # JSON响应解析与字段校验
 # -----------------------------------------------------------------------------
 def strip_code_fence(text: str) -> str:
-    """移除模型偶尔返回的Markdown代码围栏。"""
+    """移除模型偶尔返回的Markdown代码围栏。."""
     stripped = text.strip()
     if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.I)
+        stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
         stripped = re.sub(r"\s*```$", "", stripped)
     return stripped.strip()
 
 
 def extract_first_json_object(text: str) -> str:
-    """从混合文本中提取首个完整JSON对象。"""
+    """从混合文本中提取首个完整JSON对象。."""
     start = text.find("{")
     if start < 0:
         raise ValueError("响应中未找到JSON对象")
@@ -315,8 +306,8 @@ def extract_first_json_object(text: str) -> str:
     raise ValueError("JSON对象括号不完整")
 
 
-def parse_json_answer(content: str) -> Dict[str, Any]:
-    """解析模型返回的JSON对象。"""
+def parse_json_answer(content: str) -> dict[str, Any]:
+    """解析模型返回的JSON对象。."""
     cleaned = strip_code_fence(content)
     try:
         value = json.loads(cleaned)
@@ -327,8 +318,8 @@ def parse_json_answer(content: str) -> Dict[str, Any]:
     return value
 
 
-def nullable_text(value: Any) -> Optional[str]:
-    """将空值、null文本和NaN统一为None。"""
+def nullable_text(value: Any) -> str | None:
+    """将空值、null文本和NaN统一为None。."""
     text = clean_cell(value)
     if not text:
         return None
@@ -337,8 +328,8 @@ def nullable_text(value: Any) -> Optional[str]:
     return text
 
 
-def normalize_string_list(value: Any) -> List[str]:
-    """将模型字段规范为字符串列表。"""
+def normalize_string_list(value: Any) -> list[str]:
+    """将模型字段规范为字符串列表。."""
     if value is None:
         return []
     if isinstance(value, str):
@@ -351,11 +342,11 @@ def normalize_string_list(value: Any) -> List[str]:
             if text:
                 result.append(text)
         return result
-    raise ValueError("应为字符串列表，实际为{}".format(type(value).__name__))
+    raise ValueError(f"应为字符串列表，实际为{type(value).__name__}")
 
 
-def normalize_confidence(value: Any) -> Optional[float]:
-    """将模型置信度统一规范到0到1范围。
+def normalize_confidence(value: Any) -> float | None:
+    """将模型置信度统一规范到0到1范围。.
 
     兼容以下常见输出：
     - 0.92
@@ -375,13 +366,13 @@ def normalize_confidence(value: Any) -> Optional[float]:
         number /= 100.0
 
     if number < 0.0 or number > 1.0:
-        raise ValueError("confidence必须在0到1之间，实际为：{}".format(value))
+        raise ValueError(f"confidence必须在0到1之间，实际为：{value}")
 
     return round(number, 4)
 
 
-def normalize_candidate_rank(value: Any) -> Optional[int]:
-    """将候选排名规范为正整数或None。"""
+def normalize_candidate_rank(value: Any) -> int | None:
+    """将候选排名规范为正整数或None。."""
     if value is None or clean_cell(value) == "":
         return None
     rank = int(float(value))
@@ -392,18 +383,13 @@ def normalize_candidate_rank(value: Any) -> Optional[int]:
 
 def normalize_candidate_consistency(
     value: Any,
-    pred_sku_id: Optional[str],
+    pred_sku_id: str | None,
 ) -> str:
-    """规范候选一致性字段。
+    """规范候选一致性字段。.
 
-    处理原则：
-    1.兼容模型返回的中英文常见表达；
-    2.未选择SKU且字段为空时，规范为none；
-    3.已选择SKU但字段为空时，保守规范为partial；
-    4.无法识别的非空内容继续报错，避免掩盖真实异常。
+    处理原则： 1.兼容模型返回的中英文常见表达； 2.未选择SKU且字段为空时，规范为none； 3.已选择SKU但字段为空时，保守规范为partial； 4.无法识别的非空内容继续报错，避免掩盖真实异常。
 
-    candidate_consistency属于RAG诊断字段。对空值进行规范化不会修改
-    decision、pred_sku_id、商品名称等主要识别结果。
+    candidate_consistency属于RAG诊断字段。对空值进行规范化不会修改 decision、pred_sku_id、商品名称等主要识别结果。
     """
     text = clean_cell(value).casefold()
 
@@ -414,7 +400,6 @@ def normalize_candidate_consistency(
         "高度一致": "strong",
         "强一致": "strong",
         "一致性强": "strong",
-
         # 部分一致或证据不完整
         "partial": "partial",
         "部分一致": "partial",
@@ -422,7 +407,6 @@ def normalize_candidate_consistency(
         "弱一致": "partial",
         "一致性一般": "partial",
         "weak": "partial",
-
         # 不一致、未选候选或无法形成候选支持
         "none": "none",
         "不一致": "none",
@@ -443,15 +427,15 @@ def normalize_candidate_consistency(
         # 已选择SKU但漏填一致性时，不自动判为strong，保守记为partial。
         return "partial"
 
-    raise ValueError("candidate_consistency无效：{}".format(value))
+    raise ValueError(f"candidate_consistency无效：{value}")
 
 
 def validate_prediction(
-    parsed: Dict[str, Any],
+    parsed: dict[str, Any],
     sample_id: str,
-    candidates: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    """校验RAG模型输出，并限制SKU只能来自检索候选。"""
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """校验RAG模型输出，并限制SKU只能来自检索候选。."""
     required = {
         "sample_id",
         "decision",
@@ -472,32 +456,26 @@ def validate_prediction(
     }
     missing = required - set(parsed.keys())
     if missing:
-        raise KeyError("模型JSON缺少字段：{}".format(sorted(missing)))
+        raise KeyError(f"模型JSON缺少字段：{sorted(missing)}")
 
     returned_sample_id = clean_cell(parsed.get("sample_id"))
     if returned_sample_id and returned_sample_id != sample_id:
-        raise ValueError(
-            "sample_id不一致：期望{}，实际{}".format(sample_id, returned_sample_id)
-        )
+        raise ValueError(f"sample_id不一致：期望{sample_id}，实际{returned_sample_id}")
 
     decision = clean_cell(parsed.get("decision")).casefold()
     if decision not in ALLOWED_DECISIONS:
-        raise ValueError("decision无效：{}".format(decision))
+        raise ValueError(f"decision无效：{decision}")
 
     pred_sku_id = nullable_text(parsed.get("pred_sku_id"))
     consistency = normalize_candidate_consistency(
         parsed.get("candidate_consistency"),
         pred_sku_id,
     )
-    candidate_map = {
-        normalize_sku(candidate.get("sku_id")): candidate for candidate in candidates
-    }
+    candidate_map = {normalize_sku(candidate.get("sku_id")): candidate for candidate in candidates}
     if pred_sku_id:
         normalized_pred_sku = normalize_sku(pred_sku_id)
         if normalized_pred_sku not in candidate_map:
-            raise ValueError(
-                "pred_sku_id不在当前Top-K候选中：{}".format(pred_sku_id)
-            )
+            raise ValueError(f"pred_sku_id不在当前Top-K候选中：{pred_sku_id}")
         pred_sku_id = clean_cell(candidate_map[normalized_pred_sku].get("sku_id"))
 
     rank = normalize_candidate_rank(parsed.get("selected_candidate_rank"))
@@ -519,18 +497,14 @@ def validate_prediction(
         "pred_generic_name": nullable_text(parsed.get("pred_generic_name")),
         "pred_specification": nullable_text(parsed.get("pred_specification")),
         "pred_manufacturer": nullable_text(parsed.get("pred_manufacturer")),
-        "pred_barcode_or_approval_no": nullable_text(
-            parsed.get("pred_barcode_or_approval_no")
-        ),
+        "pred_barcode_or_approval_no": nullable_text(parsed.get("pred_barcode_or_approval_no")),
         "pred_sku_id": pred_sku_id,
         "selected_candidate_rank": rank,
         "candidate_consistency": consistency,
         "confidence": normalize_confidence(parsed.get("confidence")),
         "visible_text": normalize_string_list(parsed.get("visible_text")),
         "package_features": normalize_string_list(parsed.get("package_features")),
-        "evidence_from_image": normalize_string_list(
-            parsed.get("evidence_from_image")
-        ),
+        "evidence_from_image": normalize_string_list(parsed.get("evidence_from_image")),
         "evidence_from_kb": normalize_string_list(parsed.get("evidence_from_kb")),
         "reason": nullable_text(parsed.get("reason")),
     }
@@ -539,8 +513,8 @@ def validate_prediction(
 # -----------------------------------------------------------------------------
 # 直接基线视觉线索与RAG查询构造
 # -----------------------------------------------------------------------------
-def parse_json_list_cell(value: Any) -> List[str]:
-    """解析CSV中的JSON字符串列表，解析失败时退化为空列表。"""
+def parse_json_list_cell(value: Any) -> list[str]:
+    """解析CSV中的JSON字符串列表，解析失败时退化为空列表。."""
     text = clean_cell(value)
     if not text:
         return []
@@ -555,8 +529,8 @@ def parse_json_list_cell(value: Any) -> List[str]:
     return []
 
 
-def direct_visual_payload(row: Dict[str, Any]) -> Dict[str, Any]:
-    """整理第一阶段直接识别结果，供检索和最终复核使用。"""
+def direct_visual_payload(row: dict[str, Any]) -> dict[str, Any]:
+    """整理第一阶段直接识别结果，供检索和最终复核使用。."""
     return {
         "status": clean_cell(row.get("status")),
         "decision": clean_cell(row.get("decision")),
@@ -564,9 +538,7 @@ def direct_visual_payload(row: Dict[str, Any]) -> Dict[str, Any]:
         "pred_generic_name": nullable_text(row.get("pred_generic_name")),
         "pred_specification": nullable_text(row.get("pred_specification")),
         "pred_manufacturer": nullable_text(row.get("pred_manufacturer")),
-        "pred_barcode_or_approval_no": nullable_text(
-            row.get("pred_barcode_or_approval_no")
-        ),
+        "pred_barcode_or_approval_no": nullable_text(row.get("pred_barcode_or_approval_no")),
         "visible_text": parse_json_list_cell(row.get("visible_text_json")),
         "package_features": parse_json_list_cell(row.get("package_features_json")),
         "reason": nullable_text(row.get("reason")),
@@ -574,22 +546,22 @@ def direct_visual_payload(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def contains_non_product_context(text: Any) -> bool:
-    """判断文本中是否明确提到货架标签、价格标签等非商品包装来源。"""
+    """判断文本中是否明确提到货架标签、价格标签等非商品包装来源。."""
     normalized = clean_cell(text)
     return any(keyword in normalized for keyword in NON_PRODUCT_CONTEXT_KEYWORDS)
 
 
 def is_obvious_non_product_text(text: Any) -> bool:
-    """识别明显的门店名、价格和促销文字。"""
+    """识别明显的门店名、价格和促销文字。."""
     value = clean_cell(text)
     if not value:
         return True
     compact = re.sub(r"\s+", "", value)
-    return any(re.fullmatch(pattern, compact, flags=re.I) for pattern in NON_PRODUCT_TEXT_PATTERNS)
+    return any(re.fullmatch(pattern, compact, flags=re.IGNORECASE) for pattern in NON_PRODUCT_TEXT_PATTERNS)
 
 
-def extract_context_text_from_reason(reason: Any) -> List[str]:
-    """从第一阶段reason中提取被明确描述为货架标签或价格标签的文字。
+def extract_context_text_from_reason(reason: Any) -> list[str]:
+    """从第一阶段reason中提取被明确描述为货架标签或价格标签的文字。.
 
     例如：
         货架标签清晰显示“百合干”
@@ -601,10 +573,8 @@ def extract_context_text_from_reason(reason: Any) -> List[str]:
     if not text or not contains_non_product_context(text):
         return []
 
-    results: List[str] = []
-    source_pattern = "(?:{})".format(
-        "|".join(re.escape(keyword) for keyword in NON_PRODUCT_CONTEXT_KEYWORDS)
-    )
+    results: list[str] = []
+    source_pattern = "(?:{})".format("|".join(re.escape(keyword) for keyword in NON_PRODUCT_CONTEXT_KEYWORDS))
 
     # 优先提取引号中的文字。
     quoted_patterns = [
@@ -612,25 +582,23 @@ def extract_context_text_from_reason(reason: Any) -> List[str]:
         source_pattern + r"[^。；;]{0,24}?[‘']([^’']{1,40})[’']",
     ]
     for pattern in quoted_patterns:
-        for match in re.finditer(pattern, text, flags=re.I):
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             value = clean_cell(match.group(1))
             if value:
                 results.append(value)
 
     # 兼容没有引号的短表达，例如“货架标签显示百合干”。
     plain_pattern = (
-        source_pattern
-        + r"[^，,。；;：:]{0,12}?(?:显示|写有|标有|可见|内容为|为|是)"
-        + r"[：:\s]*([^，,。；;]{1,20})"
+        source_pattern + r"[^，,。；;：:]{0,12}?(?:显示|写有|标有|可见|内容为|为|是)" + r"[：:\s]*([^，,。；;]{1,20})"
     )
-    for match in re.finditer(plain_pattern, text, flags=re.I):
+    for match in re.finditer(plain_pattern, text, flags=re.IGNORECASE):
         value = clean_cell(match.group(1))
         value = re.sub(r"^(?:文字|内容)[为是：:\s]*", "", value)
         if value:
             results.append(value)
 
     # 去重并保留原顺序。
-    unique: List[str] = []
+    unique: list[str] = []
     seen = set()
     for item in results:
         key = normalize_text(item)
@@ -641,7 +609,7 @@ def extract_context_text_from_reason(reason: Any) -> List[str]:
 
 
 def text_matches_any(value: Any, candidates: Sequence[Any]) -> bool:
-    """判断一个文本与候选文本是否相同或存在明显包含关系。"""
+    """判断一个文本与候选文本是否相同或存在明显包含关系。."""
     normalized_value = normalize_text(value)
     if not normalized_value:
         return False
@@ -659,30 +627,23 @@ def text_matches_any(value: Any, candidates: Sequence[Any]) -> bool:
 
 
 def sanitize_direct_payload_for_retrieval(
-    payload: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """过滤第一阶段结果中的非商品包装线索。
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """过滤第一阶段结果中的非商品包装线索。.
 
-    该函数只改变用于检索和第二阶段提示词的副本，原始Direct结果会完整保存在
-    retrieval_results.jsonl和raw_responses.jsonl中，便于实验审计。
+    该函数只改变用于检索和第二阶段提示词的副本，原始Direct结果会完整保存在 retrieval_results.jsonl和raw_responses.jsonl中，便于实验审计。
 
-    过滤原则：
-    1.移除reason中明确归属于货架标签、价格标签等来源的visible_text；
-    2.移除明显的门店名、价格和促销文字；
-    3.移除描述货架标签、价格标签和背景区域的package_features；
-    4.若身份字段与被移除文字相同，则同步清空该字段；
-    5.不读取人工真值，不根据知识库反向修改第一阶段结果。
+    过滤原则： 1.移除reason中明确归属于货架标签、价格标签等来源的visible_text； 2.移除明显的门店名、价格和促销文字； 3.移除描述货架标签、价格标签和背景区域的package_features；
+    4.若身份字段与被移除文字相同，则同步清空该字段； 5.不读取人工真值，不根据知识库反向修改第一阶段结果。
     """
-    sanitized: Dict[str, Any] = {
+    sanitized: dict[str, Any] = {
         "status": clean_cell(payload.get("status")),
         "decision": clean_cell(payload.get("decision")),
         "pred_drug_name": nullable_text(payload.get("pred_drug_name")),
         "pred_generic_name": nullable_text(payload.get("pred_generic_name")),
         "pred_specification": nullable_text(payload.get("pred_specification")),
         "pred_manufacturer": nullable_text(payload.get("pred_manufacturer")),
-        "pred_barcode_or_approval_no": nullable_text(
-            payload.get("pred_barcode_or_approval_no")
-        ),
+        "pred_barcode_or_approval_no": nullable_text(payload.get("pred_barcode_or_approval_no")),
         "visible_text": list(payload.get("visible_text", []) or []),
         "package_features": list(payload.get("package_features", []) or []),
         "reason": nullable_text(payload.get("reason")),
@@ -692,34 +653,28 @@ def sanitize_direct_payload_for_retrieval(
     context_in_reason = contains_non_product_context(original_reason)
     reason_context_text = extract_context_text_from_reason(original_reason)
 
-    removed_visible_text: List[str] = []
-    kept_visible_text: List[str] = []
+    removed_visible_text: list[str] = []
+    kept_visible_text: list[str] = []
     for item in sanitized["visible_text"]:
-        should_remove = (
-            is_obvious_non_product_text(item)
-            or text_matches_any(item, reason_context_text)
-        )
+        should_remove = is_obvious_non_product_text(item) or text_matches_any(item, reason_context_text)
         if should_remove:
             removed_visible_text.append(clean_cell(item))
         else:
             kept_visible_text.append(clean_cell(item))
     sanitized["visible_text"] = [item for item in kept_visible_text if item]
 
-    removed_package_features: List[str] = []
-    kept_package_features: List[str] = []
+    removed_package_features: list[str] = []
+    kept_package_features: list[str] = []
     for item in sanitized["package_features"]:
         if contains_non_product_context(item) or any(
-            keyword in clean_cell(item)
-            for keyword in ("货架", "价签", "价格牌", "背景区域", "门店标识")
+            keyword in clean_cell(item) for keyword in ("货架", "价签", "价格牌", "背景区域", "门店标识")
         ):
             removed_package_features.append(clean_cell(item))
         else:
             kept_package_features.append(clean_cell(item))
-    sanitized["package_features"] = [
-        item for item in kept_package_features if item
-    ]
+    sanitized["package_features"] = [item for item in kept_package_features if item]
 
-    removed_identity_fields: List[str] = []
+    removed_identity_fields: list[str] = []
     identity_fields = (
         "pred_drug_name",
         "pred_generic_name",
@@ -734,7 +689,7 @@ def sanitize_direct_payload_for_retrieval(
             sanitized[field] = None
             removed_identity_fields.append(field)
 
-    filter_reasons: List[str] = []
+    filter_reasons: list[str] = []
     if context_in_reason:
         filter_reasons.append("direct_reason_mentions_non_product_context")
     if removed_visible_text:
@@ -769,17 +724,15 @@ def sanitize_direct_payload_for_retrieval(
     return sanitized, audit
 
 
-def build_retrieval_query(payload: Dict[str, Any]) -> str:
-    """按身份字段权重构造知识库检索查询文本。"""
+def build_retrieval_query(payload: dict[str, Any]) -> str:
+    """按身份字段权重构造知识库检索查询文本。."""
     drug_name = clean_cell(payload.get("pred_drug_name"))
     generic_name = clean_cell(payload.get("pred_generic_name"))
     specification = clean_cell(payload.get("pred_specification"))
     manufacturer = clean_cell(payload.get("pred_manufacturer"))
     barcode = clean_cell(payload.get("pred_barcode_or_approval_no"))
     visible_text = [clean_cell(item) for item in payload.get("visible_text", [])]
-    package_features = [
-        clean_cell(item) for item in payload.get("package_features", [])
-    ]
+    package_features = [clean_cell(item) for item in payload.get("package_features", [])]
 
     # 名称、条码和可见文字重复加入，提高字符检索的权重。
     parts = [
@@ -805,30 +758,26 @@ def build_retrieval_query(payload: Dict[str, Any]) -> str:
 # -----------------------------------------------------------------------------
 # 检索评分与候选构造
 # -----------------------------------------------------------------------------
-def prepare_query_norms(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """预先标准化一次查询字段，避免对每条知识库记录重复处理。"""
+def prepare_query_norms(payload: dict[str, Any]) -> dict[str, Any]:
+    """预先标准化一次查询字段，避免对每条知识库记录重复处理。."""
     return {
         "barcode": normalize_text(payload.get("pred_barcode_or_approval_no")),
         "drug_name": normalize_text(payload.get("pred_drug_name")),
         "generic_name": normalize_text(payload.get("pred_generic_name")),
         "specification": normalize_text(payload.get("pred_specification")),
         "manufacturer": normalize_text(payload.get("pred_manufacturer")),
-        "visible_text": [
-            normalize_text(item)
-            for item in payload.get("visible_text", [])
-            if normalize_text(item)
-        ],
+        "visible_text": [normalize_text(item) for item in payload.get("visible_text", []) if normalize_text(item)],
     }
 
 
 def exact_field_boost(
-    query_norms: Dict[str, Any],
-    record: Dict[str, Any],
-    boosts: Dict[str, float],
-) -> Tuple[float, List[str]]:
-    """根据名称、规格、厂家和条码的一致性计算精确匹配加权。"""
+    query_norms: dict[str, Any],
+    record: dict[str, Any],
+    boosts: dict[str, float],
+) -> tuple[float, list[str]]:
+    """根据名称、规格、厂家和条码的一致性计算精确匹配加权。."""
     score = 0.0
-    evidence: List[str] = []
+    evidence: list[str] = []
 
     query_barcode = clean_cell(query_norms.get("barcode"))
     record_barcode = clean_cell(record.get("norm_barcode"))
@@ -860,11 +809,7 @@ def exact_field_boost(
 
     query_manufacturer = clean_cell(query_norms.get("manufacturer"))
     record_manufacturer = clean_cell(record.get("norm_manufacturer"))
-    if (
-        query_manufacturer
-        and record_manufacturer
-        and query_manufacturer == record_manufacturer
-    ):
+    if query_manufacturer and record_manufacturer and query_manufacturer == record_manufacturer:
         score += float(boosts.get("manufacturer_exact", 0.20))
         evidence.append("manufacturer_exact")
 
@@ -877,14 +822,15 @@ def exact_field_boost(
 
     return score, evidence
 
+
 def retrieve_candidates(
     query_text: str,
-    payload: Dict[str, Any],
-    bundle: Dict[str, Any],
+    payload: dict[str, Any],
+    bundle: dict[str, Any],
     top_k: int,
-    boosts: Dict[str, float],
-) -> List[Dict[str, Any]]:
-    """执行TF-IDF检索和字段加权，返回排序后的Top-K候选。"""
+    boosts: dict[str, float],
+) -> list[dict[str, Any]]:
+    """执行TF-IDF检索和字段加权，返回排序后的Top-K候选。."""
     if not query_text.strip():
         return []
 
@@ -900,7 +846,7 @@ def retrieve_candidates(
         base_scores = (query_vector @ matrix.T).toarray().ravel()
 
     query_norms = prepare_query_norms(payload)
-    scored: List[Tuple[float, float, float, int, List[str]]] = []
+    scored: list[tuple[float, float, float, int, list[str]]] = []
     for index, record in enumerate(records):
         field_score, evidence = exact_field_boost(query_norms, record, boosts)
         base_score = float(base_scores[index])
@@ -910,10 +856,8 @@ def retrieve_candidates(
     scored.sort(key=lambda item: (-item[0], -item[1], item[3]))
     selected = scored[: max(0, int(top_k))]
 
-    candidates: List[Dict[str, Any]] = []
-    for rank, (final_score, base_score, field_score, index, evidence) in enumerate(
-        selected, start=1
-    ):
+    candidates: list[dict[str, Any]] = []
+    for rank, (final_score, base_score, field_score, index, evidence) in enumerate(selected, start=1):
         record = records[index]
         candidates.append(
             {
@@ -936,8 +880,8 @@ def retrieve_candidates(
     return candidates
 
 
-def candidate_prompt_payload(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """生成精简候选上下文，避免把内部检索字段全部发送给模型。"""
+def candidate_prompt_payload(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """生成精简候选上下文，避免把内部检索字段全部发送给模型。."""
     fields = [
         "rank",
         "sku_id",
@@ -951,64 +895,42 @@ def candidate_prompt_payload(candidates: List[Dict[str, Any]]) -> List[Dict[str,
         "visual_keywords",
         "retrieval_score",
     ]
-    return [
-        {field: candidate.get(field) for field in fields}
-        for candidate in candidates
-    ]
+    return [{field: candidate.get(field) for field in fields} for candidate in candidates]
 
 
 def apply_non_product_context_guard(
-    validated: Dict[str, Any],
-    filter_audit: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """审计模型是否重新使用了已过滤的非商品上下文。
+    validated: dict[str, Any],
+    filter_audit: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """审计模型是否重新使用了已过滤的非商品上下文。.
 
     本函数只记录潜在风险，不再修改模型的decision、SKU或其他预测字段。
 
-    这样做的原因：
-    1.检索阶段已经过滤货架标签、价格标签和门店标识；
-    2.模型可能在visible_text或解释中客观提到这些文字，
-      但不代表模型依赖这些文字确定商品身份；
-    3.自动将结果降级为unknown容易误伤有充分独立证据的正确结果；
-    4.保留模型原始输出，更适合后续进行客观实验评价。
+    这样做的原因： 1.检索阶段已经过滤货架标签、价格标签和门店标识； 2.模型可能在visible_text或解释中客观提到这些文字， 但不代表模型依赖这些文字确定商品身份；
+    3.自动将结果降级为unknown容易误伤有充分独立证据的正确结果； 4.保留模型原始输出，更适合后续进行客观实验评价。
     """
     result = dict(validated)
 
-    evidence_items = list(
-        result.get("evidence_from_image", []) or []
-    )
+    evidence_items = list(result.get("evidence_from_image", []) or [])
     reason = clean_cell(result.get("reason"))
 
-    combined_text = " ".join(
-        evidence_items + ([reason] if reason else [])
-    )
+    combined_text = " ".join(evidence_items + ([reason] if reason else []))
 
     # 检查模型解释中是否出现货架标签、价格标签等语义。
-    source_violation = contains_non_product_context(
-        combined_text
-    )
+    source_violation = contains_non_product_context(combined_text)
 
     # 检查模型是否重新提到了检索阶段删除的文字。
-    removed_text = (
-        filter_audit.get("removed_visible_text", []) or []
-    )
+    removed_text = filter_audit.get("removed_visible_text", []) or []
 
-    removed_text_reused = any(
-        text_matches_any(item, [combined_text])
-        for item in removed_text
-    )
+    removed_text_reused = any(text_matches_any(item, [combined_text]) for item in removed_text)
 
-    audit_reasons: List[str] = []
+    audit_reasons: list[str] = []
 
     if source_violation:
-        audit_reasons.append(
-            "model_mentioned_non_product_context"
-        )
+        audit_reasons.append("model_mentioned_non_product_context")
 
     if removed_text_reused:
-        audit_reasons.append(
-            "model_rementioned_filtered_context_text"
-        )
+        audit_reasons.append("model_rementioned_filtered_context_text")
 
     # 仅记录风险，不修改模型结果。
     audit = {
@@ -1022,20 +944,16 @@ def apply_non_product_context_guard(
 
 
 def canonicalize_selected_candidate(
-    validated: Dict[str, Any],
-    candidates: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    """若模型选择候选SKU，则用知识库记录确定性回填最终字段。"""
+    validated: dict[str, Any],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """若模型选择候选SKU，则用知识库记录确定性回填最终字段。."""
     result = dict(validated)
     selected_sku = normalize_sku(validated.get("pred_sku_id"))
     if not selected_sku:
         return result
 
-    selected = next(
-        candidate
-        for candidate in candidates
-        if normalize_sku(candidate.get("sku_id")) == selected_sku
-    )
+    selected = next(candidate for candidate in candidates if normalize_sku(candidate.get("sku_id")) == selected_sku)
     result["pred_sku_id"] = clean_cell(selected.get("sku_id"))
     result["pred_drug_name"] = nullable_text(selected.get("drug_name"))
     result["pred_generic_name"] = nullable_text(selected.get("generic_name"))
@@ -1051,8 +969,8 @@ def canonicalize_selected_candidate(
 # -----------------------------------------------------------------------------
 def usage_values(
     completion: Any,
-) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
-    """提取API返回的token统计。"""
+) -> tuple[int | None, int | None, int | None, int | None]:
+    """提取API返回的token统计。."""
     usage = getattr(completion, "usage", None)
     if usage is None:
         return None, None, None, None
@@ -1067,7 +985,7 @@ def usage_values(
 
 
 def read_existing_predictions(path: Path) -> pd.DataFrame:
-    """读取已有RAG预测表并补齐新版本字段。"""
+    """读取已有RAG预测表并补齐新版本字段。."""
     if not path.exists() or path.stat().st_size == 0:
         return pd.DataFrame(columns=PREDICTION_COLUMNS)
     frame = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
@@ -1077,8 +995,8 @@ def read_existing_predictions(path: Path) -> pd.DataFrame:
     return frame[PREDICTION_COLUMNS]
 
 
-def write_predictions_atomic(path: Path, rows: List[Dict[str, Any]]) -> None:
-    """使用临时文件原子写入CSV，降低中断导致文件损坏的风险。"""
+def write_predictions_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
+    """使用临时文件原子写入CSV，降低中断导致文件损坏的风险。."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     frame = pd.DataFrame(rows, columns=PREDICTION_COLUMNS)
@@ -1087,7 +1005,7 @@ def write_predictions_atomic(path: Path, rows: List[Dict[str, Any]]) -> None:
 
 
 def completed_sample_ids(frame: pd.DataFrame) -> set:
-    """返回已完成或已确认格式失败的样本编号。"""
+    """返回已完成或已确认格式失败的样本编号。."""
     if frame.empty:
         return set()
     final_statuses = {"ok", "format_error", "input_error"}
@@ -1095,8 +1013,8 @@ def completed_sample_ids(frame: pd.DataFrame) -> set:
     return set(frame.loc[mask, "sample_id"].astype(str))
 
 
-def upsert_prediction(rows: List[Dict[str, Any]], new_row: Dict[str, Any]) -> None:
-    """按sample_id更新或插入单条预测记录。"""
+def upsert_prediction(rows: list[dict[str, Any]], new_row: dict[str, Any]) -> None:
+    """按sample_id更新或插入单条预测记录。."""
     sample_id = str(new_row["sample_id"])
     for index, row in enumerate(rows):
         if str(row.get("sample_id", "")) == sample_id:
@@ -1105,8 +1023,8 @@ def upsert_prediction(rows: List[Dict[str, Any]], new_row: Dict[str, Any]) -> No
     rows.append(new_row)
 
 
-def blank_prediction_row(run_id: str, sample_id: str, model: str) -> Dict[str, Any]:
-    """创建字段完整的空预测行。"""
+def blank_prediction_row(run_id: str, sample_id: str, model: str) -> dict[str, Any]:
+    """创建字段完整的空预测行。."""
     row = {column: "" for column in PREDICTION_COLUMNS}
     row.update(
         {
@@ -1120,15 +1038,15 @@ def blank_prediction_row(run_id: str, sample_id: str, model: str) -> Dict[str, A
 
 
 def get_retry_delay(attempt: int) -> float:
-    """计算带微小随机抖动的指数退避等待时间。"""
-    return min(30.0, (2.0 ** attempt) + random.uniform(0.0, 0.5))
+    """计算带微小随机抖动的指数退避等待时间。."""
+    return min(30.0, (2.0**attempt) + random.uniform(0.0, 0.5))
 
 
 # -----------------------------------------------------------------------------
 # 主流程
 # -----------------------------------------------------------------------------
 def main() -> int:
-    """执行全量RAG检索、API复核和结果保存。"""
+    """执行全量RAG检索、API复核和结果保存。."""
     parser = argparse.ArgumentParser(description="运行Qwen3.7-Plus RAG识别实验")
     parser.add_argument(
         "--config",
@@ -1173,11 +1091,9 @@ def main() -> int:
         ("用户提示词", user_prompt_path),
     ]:
         if not path.exists():
-            raise FileNotFoundError("未找到{}：{}".format(label, path))
+            raise FileNotFoundError(f"未找到{label}：{path}")
 
-    manifest = pd.read_csv(
-        manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
+    manifest = pd.read_csv(manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     direct_frame = pd.read_csv(
         direct_predictions_path,
         dtype=str,
@@ -1189,20 +1105,15 @@ def main() -> int:
     if direct_frame["sample_id"].duplicated().any():
         raise ValueError("直接基线预测存在重复sample_id")
 
-    direct_by_id = {
-        str(row["sample_id"]): row
-        for row in direct_frame.to_dict(orient="records")
-    }
-    manifest = manifest[
-        manifest["include_in_inference"].astype(str) != "0"
-    ].copy()
+    direct_by_id = {str(row["sample_id"]): row for row in direct_frame.to_dict(orient="records")}
+    manifest = manifest[manifest["include_in_inference"].astype(str) != "0"].copy()
     manifest = manifest.sort_values("sample_id").reset_index(drop=True)
 
     bundle = joblib.load(index_path)
     required_bundle_keys = {"vectorizer", "matrix", "records", "method"}
     missing_bundle_keys = required_bundle_keys - set(bundle.keys())
     if missing_bundle_keys:
-        raise KeyError("RAG索引缺少内容：{}".format(sorted(missing_bundle_keys)))
+        raise KeyError(f"RAG索引缺少内容：{sorted(missing_bundle_keys)}")
 
     system_prompt = read_text(system_prompt_path)
     user_prompt_template = read_text(user_prompt_path)
@@ -1210,10 +1121,7 @@ def main() -> int:
     api_key_env = str(api_cfg["api_key_env"])
     api_key = os.getenv(api_key_env)
     if not api_key:
-        raise EnvironmentError(
-            "未读取到环境变量{}。PowerShell临时设置示例：\n"
-            "$env:{}=\"你的API-Key\"".format(api_key_env, api_key_env)
-        )
+        raise OSError(f'未读取到环境变量{api_key_env}。PowerShell临时设置示例：\n$env:{api_key_env}="你的API-Key"')
 
     client = OpenAI(
         api_key=api_key,
@@ -1227,18 +1135,13 @@ def main() -> int:
     temperature = float(api_cfg.get("temperature", 0.1))
     max_tokens = int(api_cfg.get("max_tokens", 1024))
     max_retries = int(api_cfg.get("max_retries", 3))
-    vl_high_resolution_images = bool(
-        api_cfg.get("vl_high_resolution_images", True)
-    )
+    vl_high_resolution_images = bool(api_cfg.get("vl_high_resolution_images", True))
     top_k = int(retrieval_cfg.get("top_k", 5))
-    field_boosts = {
-        key: float(value)
-        for key, value in retrieval_cfg.get("field_boosts", {}).items()
-    }
+    field_boosts = {key: float(value) for key, value in retrieval_cfg.get("field_boosts", {}).items()}
     retrieval_method = str(retrieval_cfg.get("method", bundle.get("method", "")))
 
     existing = read_existing_predictions(predictions_path)
-    prediction_rows: List[Dict[str, Any]] = existing.to_dict(orient="records")
+    prediction_rows: list[dict[str, Any]] = existing.to_dict(orient="records")
     completed = set() if args.force else completed_sample_ids(existing)
 
     pending = manifest[~manifest["sample_id"].isin(completed)].copy()
@@ -1260,9 +1163,9 @@ def main() -> int:
         "top_k": top_k,
         "query_source": retrieval_cfg.get("query_source"),
         "ground_truth_used": False,
-        "manifest_total": int(len(manifest)),
-        "already_completed": int(len(completed)),
-        "pending_this_run": int(len(pending)),
+        "manifest_total": len(manifest),
+        "already_completed": len(completed),
+        "pending_this_run": len(pending),
         "force": bool(args.force),
     }
     append_line(run_info_log, json.dumps(run_metadata, ensure_ascii=False))
@@ -1271,11 +1174,11 @@ def main() -> int:
         print("没有待处理样本。现有RAG预测已覆盖输入清单。")
         return 0
 
-    print("本次运行ID：{}".format(run_id))
-    print("待处理样本：{}".format(len(pending)))
-    print("模型：{}".format(model))
-    print("检索方法：{}".format(retrieval_method))
-    print("Top-K：{}".format(top_k))
+    print(f"本次运行ID：{run_id}")
+    print(f"待处理样本：{len(pending)}")
+    print(f"模型：{model}")
+    print(f"检索方法：{retrieval_method}")
+    print(f"Top-K：{top_k}")
     print("真值参与推理：否")
 
     success_count = 0
@@ -1284,13 +1187,11 @@ def main() -> int:
     input_error_count = 0
 
     total_pending = len(pending)
-    for position, manifest_row in enumerate(
-        pending.to_dict(orient="records"), start=1
-    ):
+    for position, manifest_row in enumerate(pending.to_dict(orient="records"), start=1):
         sample_id = str(manifest_row["sample_id"])
         image_path = Path(manifest_row["crop_path"])
         print(
-            "[{}/{}] {}".format(position, total_pending, sample_id),
+            f"[{position}/{total_pending}] {sample_id}",
             end=" ",
             flush=True,
         )
@@ -1314,40 +1215,28 @@ def main() -> int:
             continue
 
         direct_payload = direct_visual_payload(direct_row)
-        retrieval_payload, filter_audit = sanitize_direct_payload_for_retrieval(
-            direct_payload
-        )
+        retrieval_payload, filter_audit = sanitize_direct_payload_for_retrieval(direct_payload)
         row["direct_status"] = clean_cell(direct_payload.get("status"))
         row["direct_decision"] = clean_cell(direct_payload.get("decision"))
-        row["original_direct_visual_result_json"] = json.dumps(
-            direct_payload, ensure_ascii=False
-        )
-        row["sanitized_direct_visual_result_json"] = json.dumps(
-            retrieval_payload, ensure_ascii=False
-        )
-        row["retrieval_filter_applied"] = (
-            "1" if filter_audit.get("filter_applied") else "0"
-        )
-        row["removed_visible_text_json"] = json.dumps(
-            filter_audit.get("removed_visible_text", []), ensure_ascii=False
-        )
-        row["retrieval_filter_reasons_json"] = json.dumps(
-            filter_audit.get("filter_reasons", []), ensure_ascii=False
-        )
+        row["original_direct_visual_result_json"] = json.dumps(direct_payload, ensure_ascii=False)
+        row["sanitized_direct_visual_result_json"] = json.dumps(retrieval_payload, ensure_ascii=False)
+        row["retrieval_filter_applied"] = "1" if filter_audit.get("filter_applied") else "0"
+        row["removed_visible_text_json"] = json.dumps(filter_audit.get("removed_visible_text", []), ensure_ascii=False)
+        row["retrieval_filter_reasons_json"] = json.dumps(filter_audit.get("filter_reasons", []), ensure_ascii=False)
 
         if not image_path.exists() or not image_path.is_file():
             row.update(
                 {
                     "status": "input_error",
                     "decision": "api_error",
-                    "parse_error": "图片不存在：{}".format(image_path),
+                    "parse_error": f"图片不存在：{image_path}",
                 }
             )
             upsert_prediction(prediction_rows, row)
             write_predictions_atomic(predictions_path, prediction_rows)
             append_line(
                 api_errors_log,
-                "{}\t{}\tinput_error\t{}".format(now_iso(), sample_id, image_path),
+                f"{now_iso()}\t{sample_id}\tinput_error\t{image_path}",
             )
             input_error_count += 1
             print("输入错误")
@@ -1365,9 +1254,7 @@ def main() -> int:
 
         row["retrieval_query"] = query_text
         row["retrieved_candidate_count"] = len(candidates)
-        row["retrieved_candidates_json"] = json.dumps(
-            candidates, ensure_ascii=False
-        )
+        row["retrieved_candidates_json"] = json.dumps(candidates, ensure_ascii=False)
         if candidates:
             row["retrieval_top1_sku_id"] = candidates[0]["sku_id"]
             row["retrieval_top1_score"] = candidates[0]["retrieval_score"]
@@ -1401,7 +1288,7 @@ def main() -> int:
             write_predictions_atomic(predictions_path, prediction_rows)
             append_line(
                 api_errors_log,
-                "{}\t{}\tinput_error\t{}".format(now_iso(), sample_id, exc),
+                f"{now_iso()}\t{sample_id}\tinput_error\t{exc}",
             )
             input_error_count += 1
             print("输入错误")
@@ -1410,12 +1297,8 @@ def main() -> int:
         user_prompt = user_prompt_template.format(
             sample_id=sample_id,
             top_k=top_k,
-            direct_visual_result=json.dumps(
-                retrieval_payload, ensure_ascii=False, indent=2
-            ),
-            candidate_context=json.dumps(
-                compact_candidates, ensure_ascii=False, indent=2
-            ),
+            direct_visual_result=json.dumps(retrieval_payload, ensure_ascii=False, indent=2),
+            candidate_context=json.dumps(compact_candidates, ensure_ascii=False, indent=2),
         )
         messages = [
             {"role": "system", "content": system_prompt},
@@ -1457,14 +1340,7 @@ def main() -> int:
                 last_error = exc
                 append_line(
                     api_errors_log,
-                    "{}\t{}\tattempt={}/{}\t{}: {}".format(
-                        now_iso(),
-                        sample_id,
-                        attempt,
-                        max_retries,
-                        type(exc).__name__,
-                        exc,
-                    ),
+                    f"{now_iso()}\t{sample_id}\tattempt={attempt}/{max_retries}\t{type(exc).__name__}: {exc}",
                 )
                 if attempt < max_retries:
                     time.sleep(get_retry_delay(attempt))
@@ -1493,9 +1369,7 @@ def main() -> int:
         finish_reason = getattr(completion.choices[0], "finish_reason", None)
         response_id = getattr(completion, "id", None)
         response_model = getattr(completion, "model", None) or model
-        prompt_tokens, completion_tokens, total_tokens, reasoning_tokens = usage_values(
-            completion
-        )
+        prompt_tokens, completion_tokens, total_tokens, reasoning_tokens = usage_values(completion)
 
         raw_record = {
             "run_id": run_id,
@@ -1530,13 +1404,9 @@ def main() -> int:
                 "response_id": response_id or "",
                 "finish_reason": finish_reason or "",
                 "prompt_tokens": prompt_tokens if prompt_tokens is not None else "",
-                "completion_tokens": completion_tokens
-                if completion_tokens is not None
-                else "",
+                "completion_tokens": completion_tokens if completion_tokens is not None else "",
                 "total_tokens": total_tokens if total_tokens is not None else "",
-                "reasoning_tokens": reasoning_tokens
-                if reasoning_tokens is not None
-                else "",
+                "reasoning_tokens": reasoning_tokens if reasoning_tokens is not None else "",
                 "latency_seconds": latency_seconds,
                 "attempt_count": attempt_used,
             }
@@ -1549,27 +1419,15 @@ def main() -> int:
             # 先保存模型原始字段，再进行候选SKU的确定性回填。
             row["model_pred_drug_name"] = validated["pred_drug_name"] or ""
             row["model_pred_generic_name"] = validated["pred_generic_name"] or ""
-            row["model_pred_specification"] = (
-                validated["pred_specification"] or ""
-            )
+            row["model_pred_specification"] = validated["pred_specification"] or ""
             row["model_pred_manufacturer"] = validated["pred_manufacturer"] or ""
-            row["model_pred_barcode_or_approval_no"] = (
-                validated["pred_barcode_or_approval_no"] or ""
-            )
+            row["model_pred_barcode_or_approval_no"] = validated["pred_barcode_or_approval_no"] or ""
             row["model_pred_sku_id"] = validated["pred_sku_id"] or ""
 
-            guarded_result, guard_audit = apply_non_product_context_guard(
-                validated, filter_audit
-            )
-            final_result = canonicalize_selected_candidate(
-                guarded_result, candidates
-            )
-            row["context_guard_triggered"] = (
-                "1" if guard_audit.get("triggered") else "0"
-            )
-            row["context_guard_reason"] = json.dumps(
-                guard_audit.get("reasons", []), ensure_ascii=False
-            )
+            guarded_result, guard_audit = apply_non_product_context_guard(validated, filter_audit)
+            final_result = canonicalize_selected_candidate(guarded_result, candidates)
+            row["context_guard_triggered"] = "1" if guard_audit.get("triggered") else "0"
+            row["context_guard_reason"] = json.dumps(guard_audit.get("reasons", []), ensure_ascii=False)
             row.update(
                 {
                     "status": "ok",
@@ -1578,33 +1436,15 @@ def main() -> int:
                     "pred_generic_name": final_result["pred_generic_name"] or "",
                     "pred_specification": final_result["pred_specification"] or "",
                     "pred_manufacturer": final_result["pred_manufacturer"] or "",
-                    "pred_barcode_or_approval_no": final_result[
-                        "pred_barcode_or_approval_no"
-                    ]
-                    or "",
+                    "pred_barcode_or_approval_no": final_result["pred_barcode_or_approval_no"] or "",
                     "pred_sku_id": final_result["pred_sku_id"] or "",
-                    "confidence": ""
-                    if final_result["confidence"] is None
-                    else final_result["confidence"],
-                    "visible_text_json": json.dumps(
-                        final_result["visible_text"], ensure_ascii=False
-                    ),
-                    "package_features_json": json.dumps(
-                        final_result["package_features"], ensure_ascii=False
-                    ),
-                    "selected_candidate_rank": final_result[
-                        "selected_candidate_rank"
-                    ]
-                    or "",
-                    "candidate_consistency": final_result[
-                        "candidate_consistency"
-                    ],
-                    "evidence_from_image_json": json.dumps(
-                        final_result["evidence_from_image"], ensure_ascii=False
-                    ),
-                    "evidence_from_kb_json": json.dumps(
-                        final_result["evidence_from_kb"], ensure_ascii=False
-                    ),
+                    "confidence": "" if final_result["confidence"] is None else final_result["confidence"],
+                    "visible_text_json": json.dumps(final_result["visible_text"], ensure_ascii=False),
+                    "package_features_json": json.dumps(final_result["package_features"], ensure_ascii=False),
+                    "selected_candidate_rank": final_result["selected_candidate_rank"] or "",
+                    "candidate_consistency": final_result["candidate_consistency"],
+                    "evidence_from_image_json": json.dumps(final_result["evidence_from_image"], ensure_ascii=False),
+                    "evidence_from_kb_json": json.dumps(final_result["evidence_from_kb"], ensure_ascii=False),
                     "reason": final_result["reason"] or "",
                     "parse_error": "",
                 }
@@ -1613,7 +1453,7 @@ def main() -> int:
             selected_text = row["pred_sku_id"] or "无SKU"
             print("完成：{}，{}".format(final_result["decision"], selected_text))
         except Exception as exc:
-            error_message = "{}: {}".format(type(exc).__name__, exc)
+            error_message = f"{type(exc).__name__}: {exc}"
             row.update(
                 {
                     "status": "format_error",
@@ -1622,7 +1462,7 @@ def main() -> int:
                 }
             )
             format_error_count += 1
-            print("格式错误：{}".format(error_message))
+            print(f"格式错误：{error_message}")
 
         upsert_prediction(prediction_rows, row)
         write_predictions_atomic(predictions_path, prediction_rows)
@@ -1641,12 +1481,12 @@ def main() -> int:
     append_line(run_info_log, json.dumps(finish_metadata, ensure_ascii=False))
 
     print("\n本次运行结束。")
-    print("成功：{}".format(success_count))
-    print("格式错误：{}".format(format_error_count))
-    print("API失败：{}".format(api_error_count))
-    print("输入错误：{}".format(input_error_count))
-    print("预测表：{}".format(predictions_path))
-    print("检索记录：{}".format(retrieval_results_path))
+    print(f"成功：{success_count}")
+    print(f"格式错误：{format_error_count}")
+    print(f"API失败：{api_error_count}")
+    print(f"输入错误：{input_error_count}")
+    print(f"预测表：{predictions_path}")
+    print(f"检索记录：{retrieval_results_path}")
     print("\n确认没有api_error后，运行：python 04_evaluate_rag_results.py")
     return 0
 
@@ -1658,5 +1498,5 @@ if __name__ == "__main__":
         print("\n用户中断。已完成样本已安全保存。", file=sys.stderr)
         sys.exit(130)
     except Exception as error:
-        print("\n运行失败：{}".format(error), file=sys.stderr)
+        print(f"\n运行失败：{error}", file=sys.stderr)
         sys.exit(1)

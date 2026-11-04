@@ -9,7 +9,7 @@ Workflow
 4. Evaluate the same best.pt on the official test split.
 5. Save a CSV/TXT summary containing validation and test metrics.
 
-Notes
+Notes:
 -----
 - The three models are trained sequentially in one script to avoid GPU OOM.
 - All models use the same user-specified training arguments.
@@ -21,18 +21,16 @@ Notes
 # 先按 Ctrl + b，松开，再按 d
 # tmux ls
 
-
 from __future__ import annotations
 
 import csv
 import traceback
 from pathlib import Path
-from typing import Dict, Optional
 
 import torch
+
 import ultralytics
 from ultralytics import YOLO
-
 
 # ============================================================
 # 1. Basic configuration
@@ -60,49 +58,44 @@ DEVICE = 0 if torch.cuda.is_available() else "cpu"
 # 2. Shared training arguments
 # ============================================================
 
-TRAIN_ARGS = dict(
-    data=str(DATA_CFG),
-    workers=WORKERS,
-    epochs=EPOCHS,
-    imgsz=IMGSZ,
-    batch=BATCH,
-    patience=0,
-
+TRAIN_ARGS = {
+    "data": str(DATA_CFG),
+    "workers": WORKERS,
+    "epochs": EPOCHS,
+    "imgsz": IMGSZ,
+    "batch": BATCH,
+    "patience": 0,
     # Basic augmentation
-    mosaic=1.0,
-    mixup=0.0,
-    copy_paste=0.0,
-    erasing=0.0,
-
-    degrees=5.0,
-    translate=0.05,
-    scale=0.15,
-    shear=0.0,
-    perspective=0.0,
-
-    fliplr=0.5,
-    flipud=0.0,
-
-    hsv_h=0.015,
-    hsv_s=0.4,
-    hsv_v=0.3,
-
+    "mosaic": 1.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "erasing": 0.0,
+    "degrees": 5.0,
+    "translate": 0.05,
+    "scale": 0.15,
+    "shear": 0.0,
+    "perspective": 0.0,
+    "fliplr": 0.5,
+    "flipud": 0.0,
+    "hsv_h": 0.015,
+    "hsv_s": 0.4,
+    "hsv_v": 0.3,
     # Reproducibility / runtime
-    seed=SEED,
-    deterministic=True,
-    device=DEVICE,
-
+    "seed": SEED,
+    "deterministic": True,
+    "device": DEVICE,
     # Output
-    project=str(RUNS_DIR),
-    plots=True,
-    save=True,
-    verbose=True,
-)
+    "project": str(RUNS_DIR),
+    "plots": True,
+    "save": True,
+    "verbose": True,
+}
 
 
 # ============================================================
 # 3. Helper functions
 # ============================================================
+
 
 def safe_float(value, default: float = float("nan")) -> float:
     try:
@@ -111,10 +104,9 @@ def safe_float(value, default: float = float("nan")) -> float:
         return default
 
 
-def extract_det_metrics(metrics) -> Dict[str, float]:
-    """
-    Extract object-detection P/R/mAP metrics from Ultralytics metrics object.
-    Compatible with common current Ultralytics DetMetrics APIs.
+def extract_det_metrics(metrics) -> dict[str, float]:
+    """Extract object-detection P/R/mAP metrics from Ultralytics metrics object. Compatible with common current
+    Ultralytics DetMetrics APIs.
     """
     # Preferred API
     if hasattr(metrics, "box"):
@@ -143,13 +135,11 @@ def extract_det_metrics(metrics) -> Dict[str, float]:
     }
 
 
-def get_model_complexity(model: YOLO) -> Dict[str, float]:
-    """
-    Return parameter count plus GFLOPs at 640 and 960 input sizes.
+def get_model_complexity(model: YOLO) -> dict[str, float]:
+    """Return parameter count plus GFLOPs at 640 and 960 input sizes.
 
-    GFLOPs@640 is useful for keeping the same complexity-reporting convention
-    as many Ultralytics model tables. GFLOPs@960 reflects this experiment's
-    actual training/evaluation image size.
+    GFLOPs@640 is useful for keeping the same complexity-reporting convention as many Ultralytics model tables.
+    GFLOPs@960 reflects this experiment's actual training/evaluation image size.
     """
     params = sum(p.numel() for p in model.model.parameters())
     gflops_640 = float("nan")
@@ -180,10 +170,9 @@ def get_model_complexity(model: YOLO) -> Dict[str, float]:
     }
 
 
-def read_best_epoch_from_results_csv(results_csv: Path) -> Dict[str, float]:
-    """
-    Read Ultralytics results.csv and locate the epoch with the highest
-    validation mAP@50:95. This is a reference value only.
+def read_best_epoch_from_results_csv(results_csv: Path) -> dict[str, float]:
+    """Read Ultralytics results.csv and locate the epoch with the highest validation mAP@50:95. This is a reference
+    value only.
 
     The actual reported validation/test metrics are re-evaluated using best.pt.
     """
@@ -208,12 +197,12 @@ def read_best_epoch_from_results_csv(results_csv: Path) -> Dict[str, float]:
     if not rows:
         return result
 
-    def find_key(row: dict, candidates) -> Optional[str]:
+    def find_key(row: dict, candidates) -> str | None:
         for c in candidates:
             if c in row:
                 return c
         # Loose fallback for minor header changes
-        lowered = {k.lower().replace(" ", ""): k for k in row.keys()}
+        lowered = {k.lower().replace(" ", ""): k for k in row}
         for c in candidates:
             n = c.lower().replace(" ", "")
             if n in lowered:
@@ -241,14 +230,10 @@ def read_best_epoch_from_results_csv(results_csv: Path) -> Dict[str, float]:
 
     _, best_row = max(valid_rows, key=lambda x: x[0])
 
-    result["best_epoch_by_csv_mAP50_95"] = safe_float(
-        best_row.get(epoch_key) if epoch_key else None
-    )
+    result["best_epoch_by_csv_mAP50_95"] = safe_float(best_row.get(epoch_key) if epoch_key else None)
     result["csv_best_P"] = safe_float(best_row.get(p_key) if p_key else None)
     result["csv_best_R"] = safe_float(best_row.get(r_key) if r_key else None)
-    result["csv_best_mAP50"] = safe_float(
-        best_row.get(map50_key) if map50_key else None
-    )
+    result["csv_best_mAP50"] = safe_float(best_row.get(map50_key) if map50_key else None)
     result["csv_best_mAP50_95"] = safe_float(best_row.get(map5095_key))
 
     return result
@@ -278,6 +263,7 @@ def fmt(x, digits=4):
 # ============================================================
 # 4. Main
 # ============================================================
+
 
 def main():
     if not DATA_CFG.exists():
@@ -383,27 +369,22 @@ def main():
                 "ImgSz": IMGSZ,
                 "Batch": BATCH,
                 "Seed": SEED,
-
                 "BestEpoch_by_resultsCSV_mAP50_95": csv_best["best_epoch_by_csv_mAP50_95"],
-
                 # best.pt re-evaluated on official val
                 "Val_P": val_metrics["P"],
                 "Val_R": val_metrics["R"],
                 "Val_mAP50": val_metrics["mAP50"],
                 "Val_mAP50_95": val_metrics["mAP50_95"],
-
                 # same best.pt evaluated on official test
                 "Test_P": test_metrics["P"],
                 "Test_R": test_metrics["R"],
                 "Test_mAP50": test_metrics["mAP50"],
                 "Test_mAP50_95": test_metrics["mAP50_95"],
-
                 "Params": complexity["Params"],
                 "Params_M": complexity["Params_M"],
                 "Params_x1e5": complexity["Params_x1e5"],
                 "GFLOPs_at_640": complexity["GFLOPs_640"],
                 "GFLOPs_at_960": complexity["GFLOPs_960"],
-
                 "TrainDir": str(train_dir),
                 "BestPt": str(best_pt),
                 "ValDir": str(RUNS_DIR / val_name),
@@ -451,11 +432,13 @@ def main():
             print(f"\n[ERROR] {display_name} failed: {e}")
             traceback.print_exc()
 
-            failure_rows.append({
-                "Model": display_name,
-                "Weights": weights,
-                "Error": repr(e),
-            })
+            failure_rows.append(
+                {
+                    "Model": display_name,
+                    "Weights": weights,
+                    "Error": repr(e),
+                }
+            )
             write_csv(
                 failure_rows,
                 RUNS_DIR / "SKU110K_3model_failures.csv",
@@ -510,9 +493,7 @@ def main():
         lines.append("FAILED MODELS:")
         for item in failure_rows:
             lines.append(f"- {item['Model']}: {item['Error']}")
-        lines.append(
-            f"Failure log: {RUNS_DIR / 'SKU110K_3model_failures.csv'}"
-        )
+        lines.append(f"Failure log: {RUNS_DIR / 'SKU110K_3model_failures.csv'}")
 
     text = "\n".join(lines)
     summary_txt.write_text(text, encoding="utf-8")

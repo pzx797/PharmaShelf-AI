@@ -1,10 +1,9 @@
 """Train YOLO11n with the SOSE small-object shallow enhancement module."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from ultralytics import YOLO
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODEL_CFG = PROJECT_ROOT / "yolo11n-sose.yaml"
@@ -16,8 +15,8 @@ SEED = 0  # Set to 1, 2, 3, or 4 for subsequent random-seed experiments.
 def transfer_yolo11n_to_sose(model: YOLO, weights: Path) -> int:
     """Transfer YOLO11n COCO weights while leaving the newly added SOSE layer randomly initialized.
 
-    SOSE is inserted at layer 11, so every original Neck/Detect layer from 11 onward moves forward by one index.
-    This explicit remapping preserves pretrained Backbone, Neck, and Detect features before dataset-specific training.
+    SOSE is inserted at layer 11, so every original Neck/Detect layer from 11 onward moves forward by one index. This
+    explicit remapping preserves pretrained Backbone, Neck, and Detect features before dataset-specific training.
     """
     if not weights.is_file():
         raise FileNotFoundError(f"COCO pretrained weight file was not found: {weights}")
