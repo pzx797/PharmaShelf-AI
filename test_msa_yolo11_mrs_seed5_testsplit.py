@@ -8,12 +8,11 @@ It saves per-seed test plots plus a CSV/TXT summary back to:
     runs/MSA-YOLO_mrs_seed5
 """
 
+import csv
 from pathlib import Path
 from statistics import mean, stdev
-import csv
 
 from ultralytics import YOLO
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_CFG = PROJECT_ROOT / "MRSDataset.yaml"
@@ -24,16 +23,16 @@ RUN_NAME_TEMPLATE = "yolo11n_SOSE_MAFF_precision_seed{seed}"
 TEST_NAME_TEMPLATE = "yolo11n_SOSE_MAFF_precision_test_seed{seed}"
 
 
-COMMON_TEST_ARGS = dict(
-    data=str(DATA_CFG),
-    split="test",
-    workers=0,
-    imgsz=960,
-    batch=16,
-    device=0,
-    plots=True,
-    project=str(SAVE_ROOT),
-)
+COMMON_TEST_ARGS = {
+    "data": str(DATA_CFG),
+    "split": "test",
+    "workers": 0,
+    "imgsz": 960,
+    "batch": 16,
+    "device": 0,
+    "plots": True,
+    "project": str(SAVE_ROOT),
+}
 
 
 def extract_metrics(metrics):
@@ -99,14 +98,14 @@ def save_summary(results):
         f.write(f"Save root:\n{SAVE_ROOT}\n\n")
 
         f.write("Per-seed test results:\n")
-        for r in results:
-            f.write(
-                f"seed={r['seed']}, "
-                f"P={r['precision']:.6f}, "
-                f"R={r['recall']:.6f}, "
-                f"mAP50={r['map50']:.6f}, "
-                f"mAP50-95={r['map50_95']:.6f}\n"
-            )
+        f.writelines(
+            f"seed={r['seed']}, "
+            f"P={r['precision']:.6f}, "
+            f"R={r['recall']:.6f}, "
+            f"mAP50={r['map50']:.6f}, "
+            f"mAP50-95={r['map50_95']:.6f}\n"
+            for r in results
+        )
 
         f.write("\nMean +/- Std over 5 seeds:\n")
         f.write(f"Precision = {p_mean:.6f} +/- {p_std:.6f}\n")

@@ -1,10 +1,9 @@
 """Train YOLO11n with the MAFF multi-scale attention fusion module."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from ultralytics import YOLO
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODEL_CFG = PROJECT_ROOT / "yolo11n-maff.yaml"
