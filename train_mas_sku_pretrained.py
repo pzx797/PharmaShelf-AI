@@ -5,11 +5,10 @@
 # 先按 Ctrl + b，松开，再按 d
 # tmux ls
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from ultralytics import YOLO
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODEL_CFG = PROJECT_ROOT / "yolo11n-msa.yaml"
@@ -26,8 +25,8 @@ SAVE_PROJECT = "/hy-tmp/ultralytics-main/runs/MSA-YOLO_mrs_pretrained"
 def transfer_yolo11n_to_msa(model: YOLO, weights: Path) -> int:
     """Transfer YOLO11n weights while leaving MSA layers randomly initialized.
 
-    MSA is inserted at layer 11, moving original layers 11-22 to 12-23.
-    MSA fusion layers are inserted before Detect at layers 24-26, moving original Detect layer 23 to 27.
+    MSA is inserted at layer 11, moving original layers 11-22 to 12-23. MSA fusion layers are inserted before Detect at
+    layers 24-26, moving original Detect layer 23 to 27.
     """
     if not weights.is_file():
         raise FileNotFoundError(f"COCO pretrained weight file was not found: {weights}")
@@ -63,45 +62,47 @@ def transfer_yolo11n_to_msa(model: YOLO, weights: Path) -> int:
 
     skipped = len(target_state) - len(transferred)
     print(f"Transferred {len(transferred)}/{len(target_state)} YOLO11n state items; {skipped} new or reshaped items.")
-    print("MSA layer 11 and MSA fusion layers 24-26 remain new; original Neck/Detect shapes are preserved where possible.")
+    print(
+        "MSA layer 11 and MSA fusion layers 24-26 remain new; original Neck/Detect shapes are preserved where possible."
+    )
 
     return len(transferred)
 
 
 # 基础训练参数
-COMMON_TRAIN_ARGS = dict(
-    data=DATA_CFG,
-    workers=0,
-    imgsz=960,
-    batch=16,
-    device=0,
-    optimizer="SGD",
-    lr0=0.01,
-    lrf=0.01,
-    momentum=0.937,
-    weight_decay=0.0005,
-    warmup_epochs=3.0,
-    warmup_bias_lr=0.01,
-    cos_lr=False,
-    mosaic=1.0,
-    mixup=0.0,
-    copy_paste=0.0,
-    erasing=0.0,
-    degrees=5.0,
-    translate=0.05,
-    scale=0.15,
-    shear=0.0,
-    perspective=0.0,
-    fliplr=0.5,
-    flipud=0.0,
-    hsv_h=0.015,
-    hsv_s=0.4,
-    hsv_v=0.3,
-    close_mosaic=50,
-    patience=0,
-    pretrained=False,
-    project=SAVE_PROJECT,
-)
+COMMON_TRAIN_ARGS = {
+    "data": DATA_CFG,
+    "workers": 0,
+    "imgsz": 960,
+    "batch": 16,
+    "device": 0,
+    "optimizer": "SGD",
+    "lr0": 0.01,
+    "lrf": 0.01,
+    "momentum": 0.937,
+    "weight_decay": 0.0005,
+    "warmup_epochs": 3.0,
+    "warmup_bias_lr": 0.01,
+    "cos_lr": False,
+    "mosaic": 1.0,
+    "mixup": 0.0,
+    "copy_paste": 0.0,
+    "erasing": 0.0,
+    "degrees": 5.0,
+    "translate": 0.05,
+    "scale": 0.15,
+    "shear": 0.0,
+    "perspective": 0.0,
+    "fliplr": 0.5,
+    "flipud": 0.0,
+    "hsv_h": 0.015,
+    "hsv_s": 0.4,
+    "hsv_v": 0.3,
+    "close_mosaic": 50,
+    "patience": 0,
+    "pretrained": False,
+    "project": SAVE_PROJECT,
+}
 
 
 if __name__ == "__main__":
@@ -154,13 +155,7 @@ if __name__ == "__main__":
     precision = result_dict.get("metrics/precision(B)", 0.0)
     recall = result_dict.get("metrics/recall(B)", 0.0)
 
-    print(
-        f"\nFinal results: "
-        f"mAP50={map50:.4f}, "
-        f"mAP50-95={map50_95:.4f}, "
-        f"P={precision:.4f}, "
-        f"R={recall:.4f}"
-    )
+    print(f"\nFinal results: mAP50={map50:.4f}, mAP50-95={map50_95:.4f}, P={precision:.4f}, R={recall:.4f}")
 
     # 5. 保存结果
     save_path = Path(SAVE_PROJECT) / "MSA_SKU_results.txt"

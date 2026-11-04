@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""准备Qwen3.7-Plus药品裁剪图RAG识别实验。
+"""准备Qwen3.7-Plus药品裁剪图RAG识别实验。.
 
 实验设计：
 1.复用已完成直接识别基线的input_manifest.csv和direct_predictions.csv。
@@ -16,7 +15,7 @@
 兼容：Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import hashlib
 import json
@@ -24,16 +23,13 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 try:
     import pandas as pd
     import yaml
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n原始错误：{exc}")
 
 
 # -----------------------------------------------------------------------------
@@ -42,10 +38,7 @@ except ImportError as exc:
 PROJECT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main")
 
 CROP_DIR = PROJECT_ROOT / r"runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\crops"
-GT_PATH = (
-    PROJECT_ROOT
-    / r"runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\instances_gt_v1_enriched.xlsx"
-)
+GT_PATH = PROJECT_ROOT / r"runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\instances_gt_v1_enriched.xlsx"
 KB_PATH = PROJECT_ROOT / r"rag_knowledge_base\sku_kb_cleaned.xlsx"
 
 DIRECT_EXPERIMENT_ROOT = PROJECT_ROOT / "qwen37plus_direct_experiment"
@@ -53,9 +46,7 @@ DIRECT_RUN_NAME = "qwen37plus_direct_v1"
 DIRECT_RUN_DIR = DIRECT_EXPERIMENT_ROOT / "runs" / DIRECT_RUN_NAME
 DIRECT_CONFIG_PATH = DIRECT_RUN_DIR / "config.yaml"
 DIRECT_MANIFEST_PATH = DIRECT_RUN_DIR / "input_manifest.csv"
-DIRECT_PREDICTIONS_PATH = (
-    DIRECT_RUN_DIR / "predictions" / "direct_predictions.csv"
-)
+DIRECT_PREDICTIONS_PATH = DIRECT_RUN_DIR / "predictions" / "direct_predictions.csv"
 
 OUTPUT_ROOT = PROJECT_ROOT / "qwen37plus_rag_experiment"
 RUN_NAME = "qwen37plus_rag_v1"
@@ -163,12 +154,12 @@ USER_PROMPT = """请识别当前药店货架商品裁剪图，并结合给出的
 # 通用辅助函数
 # -----------------------------------------------------------------------------
 def now_iso() -> str:
-    """返回带本地时区的ISO时间字符串。"""
+    """返回带本地时区的ISO时间字符串。."""
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
-    """计算文件SHA256，用于冻结并核验实验输入。"""
+    """计算文件SHA256，用于冻结并核验实验输入。."""
     digest = hashlib.sha256()
     with path.open("rb") as file_obj:
         while True:
@@ -180,22 +171,22 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
 
 
 def write_text(path: Path, content: str) -> None:
-    """以UTF-8写入文本，并自动创建父目录。"""
+    """以UTF-8写入文本，并自动创建父目录。."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
-    """读取YAML配置文件并检查顶层结构。"""
+def read_yaml(path: Path) -> dict[str, Any]:
+    """读取YAML配置文件并检查顶层结构。."""
     with path.open("r", encoding="utf-8") as file_obj:
         value = yaml.safe_load(file_obj)
     if not isinstance(value, dict):
-        raise ValueError("YAML配置内容无效：{}".format(path))
+        raise ValueError(f"YAML配置内容无效：{path}")
     return value
 
 
 def ensure_required_paths() -> None:
-    """检查RAG实验依赖的目录和文件是否齐全。"""
+    """检查RAG实验依赖的目录和文件是否齐全。."""
     required = [
         ("裁剪图目录", CROP_DIR),
         ("人工真值表", GT_PATH),
@@ -204,10 +195,10 @@ def ensure_required_paths() -> None:
         ("直接基线输入清单", DIRECT_MANIFEST_PATH),
         ("直接基线预测结果", DIRECT_PREDICTIONS_PATH),
     ]
-    missing: List[str] = []
+    missing: list[str] = []
     for label, path in required:
         if not path.exists():
-            missing.append("{}不存在：{}".format(label, path))
+            missing.append(f"{label}不存在：{path}")
     if missing:
         raise FileNotFoundError("\n".join(missing))
 
@@ -215,8 +206,8 @@ def ensure_required_paths() -> None:
 def validate_direct_artifacts(
     manifest: pd.DataFrame,
     direct_predictions: pd.DataFrame,
-) -> Dict[str, int]:
-    """验证直接基线清单和预测结果能够按sample_id一一对应。"""
+) -> dict[str, int]:
+    """验证直接基线清单和预测结果能够按sample_id一一对应。."""
     manifest_required = {
         "sample_id",
         "crop_path",
@@ -243,17 +234,9 @@ def validate_direct_artifacts(
     missing_manifest = manifest_required - set(manifest.columns)
     missing_predictions = prediction_required - set(direct_predictions.columns)
     if missing_manifest:
-        raise KeyError(
-            "直接基线input_manifest.csv缺少字段：{}".format(
-                sorted(missing_manifest)
-            )
-        )
+        raise KeyError(f"直接基线input_manifest.csv缺少字段：{sorted(missing_manifest)}")
     if missing_predictions:
-        raise KeyError(
-            "直接基线direct_predictions.csv缺少字段：{}".format(
-                sorted(missing_predictions)
-            )
-        )
+        raise KeyError(f"直接基线direct_predictions.csv缺少字段：{sorted(missing_predictions)}")
 
     if manifest["sample_id"].duplicated().any():
         raise ValueError("直接基线输入清单存在重复sample_id")
@@ -267,27 +250,21 @@ def validate_direct_artifacts(
 
     if missing_predictions_ids:
         raise ValueError(
-            "直接基线仍有{}个样本缺少预测，例如：{}".format(
-                len(missing_predictions_ids), missing_predictions_ids[:5]
-            )
+            f"直接基线仍有{len(missing_predictions_ids)}个样本缺少预测，例如：{missing_predictions_ids[:5]}"
         )
     if extra_prediction_ids:
-        raise ValueError(
-            "直接预测结果存在{}个清单外样本，例如：{}".format(
-                len(extra_prediction_ids), extra_prediction_ids[:5]
-            )
-        )
+        raise ValueError(f"直接预测结果存在{len(extra_prediction_ids)}个清单外样本，例如：{extra_prediction_ids[:5]}")
 
     return {
-        "manifest_count": int(len(manifest)),
-        "prediction_count": int(len(direct_predictions)),
+        "manifest_count": len(manifest),
+        "prediction_count": len(direct_predictions),
         "direct_ok_count": int((direct_predictions["status"] == "ok").sum()),
         "direct_non_ok_count": int((direct_predictions["status"] != "ok").sum()),
     }
 
 
-def build_config(direct_config: Dict[str, Any]) -> Dict[str, Any]:
-    """构建RAG实验的冻结配置，保持API参数与直接基线一致。"""
+def build_config(direct_config: dict[str, Any]) -> dict[str, Any]:
+    """构建RAG实验的冻结配置，保持API参数与直接基线一致。."""
     baseline_api = direct_config.get("api", {})
 
     # 优先继承已运行基线中的API参数，避免对照实验产生额外变量。
@@ -303,9 +280,7 @@ def build_config(direct_config: Dict[str, Any]) -> Dict[str, Any]:
         "max_retries": baseline_api.get("max_retries", MAX_RETRIES),
         "concurrency": baseline_api.get("concurrency", CONCURRENCY),
         "response_format": "json_object",
-        "vl_high_resolution_images": baseline_api.get(
-            "vl_high_resolution_images", VL_HIGH_RESOLUTION_IMAGES
-        ),
+        "vl_high_resolution_images": baseline_api.get("vl_high_resolution_images", VL_HIGH_RESOLUTION_IMAGES),
     }
 
     return {
@@ -334,49 +309,21 @@ def build_config(direct_config: Dict[str, Any]) -> Dict[str, Any]:
             "manifest_path": str(RUN_DIR / "input_manifest.csv"),
             "system_prompt_path": str(RUN_DIR / "prompts" / "system_prompt.txt"),
             "user_prompt_path": str(RUN_DIR / "prompts" / "user_prompt.txt"),
-            "retrieval_index_path": str(
-                RUN_DIR / "index" / "rag_tfidf_index.joblib"
-            ),
-            "retrieval_records_path": str(
-                RUN_DIR / "index" / "knowledge_base_records.csv"
-            ),
-            "retrieval_metadata_path": str(
-                RUN_DIR / "index" / "index_metadata.json"
-            ),
-            "retrieval_results_path": str(
-                RUN_DIR / "retrieval" / "retrieval_results.jsonl"
-            ),
-            "raw_responses_path": str(
-                RUN_DIR / "responses" / "raw_responses.jsonl"
-            ),
-            "predictions_path": str(
-                RUN_DIR / "predictions" / "rag_predictions.csv"
-            ),
-            "merged_results_path": str(
-                RUN_DIR / "evaluation" / "merged_results.csv"
-            ),
+            "retrieval_index_path": str(RUN_DIR / "index" / "rag_tfidf_index.joblib"),
+            "retrieval_records_path": str(RUN_DIR / "index" / "knowledge_base_records.csv"),
+            "retrieval_metadata_path": str(RUN_DIR / "index" / "index_metadata.json"),
+            "retrieval_results_path": str(RUN_DIR / "retrieval" / "retrieval_results.jsonl"),
+            "raw_responses_path": str(RUN_DIR / "responses" / "raw_responses.jsonl"),
+            "predictions_path": str(RUN_DIR / "predictions" / "rag_predictions.csv"),
+            "merged_results_path": str(RUN_DIR / "evaluation" / "merged_results.csv"),
             "metrics_path": str(RUN_DIR / "evaluation" / "metrics.json"),
-            "paper_metrics_path": str(
-                RUN_DIR / "evaluation" / "paper_metrics.csv"
-            ),
-            "error_cases_path": str(
-                RUN_DIR / "evaluation" / "error_cases.csv"
-            ),
-            "manual_review_cases_path": str(
-                RUN_DIR / "evaluation" / "manual_review_cases.csv"
-            ),
-            "retrieval_merged_results_path": str(
-                RUN_DIR / "evaluation" / "retrieval_merged_results.csv"
-            ),
-            "retrieval_metrics_path": str(
-                RUN_DIR / "evaluation" / "retrieval_metrics.json"
-            ),
-            "retrieval_metrics_csv_path": str(
-                RUN_DIR / "evaluation" / "retrieval_metrics.csv"
-            ),
-            "retrieval_error_cases_path": str(
-                RUN_DIR / "evaluation" / "retrieval_error_cases.csv"
-            ),
+            "paper_metrics_path": str(RUN_DIR / "evaluation" / "paper_metrics.csv"),
+            "error_cases_path": str(RUN_DIR / "evaluation" / "error_cases.csv"),
+            "manual_review_cases_path": str(RUN_DIR / "evaluation" / "manual_review_cases.csv"),
+            "retrieval_merged_results_path": str(RUN_DIR / "evaluation" / "retrieval_merged_results.csv"),
+            "retrieval_metrics_path": str(RUN_DIR / "evaluation" / "retrieval_metrics.json"),
+            "retrieval_metrics_csv_path": str(RUN_DIR / "evaluation" / "retrieval_metrics.csv"),
+            "retrieval_error_cases_path": str(RUN_DIR / "evaluation" / "retrieval_error_cases.csv"),
             "api_errors_log": str(RUN_DIR / "logs" / "api_errors.log"),
             "run_info_log": str(RUN_DIR / "logs" / "run_info.log"),
         },
@@ -436,7 +383,7 @@ def build_config(direct_config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def main() -> int:
-    """执行目录创建、基线校验、清单复制和配置冻结。"""
+    """执行目录创建、基线校验、清单复制和配置冻结。."""
     print("正在准备Qwen3.7-Plus RAG识别实验……")
     ensure_required_paths()
 
@@ -507,12 +454,12 @@ def main() -> int:
     )
 
     print("\n准备完成。")
-    print("RAG实验目录：{}".format(RUN_DIR))
+    print(f"RAG实验目录：{RUN_DIR}")
     print("输入样本数：{}".format(validation["manifest_count"]))
     print("直接基线成功结果：{}".format(validation["direct_ok_count"]))
     print("直接基线异常结果：{}".format(validation["direct_non_ok_count"]))
-    print("知识库：{}".format(KB_PATH))
-    print("配置文件：{}".format(config_path))
+    print(f"知识库：{KB_PATH}")
+    print(f"配置文件：{config_path}")
     print("\n下一步运行：python 02_build_rag_index.py")
     return 0
 
@@ -521,5 +468,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print("\n准备失败：{}".format(error), file=sys.stderr)
+        print(f"\n准备失败：{error}", file=sys.stderr)
         sys.exit(1)
