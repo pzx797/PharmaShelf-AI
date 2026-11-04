@@ -1,19 +1,18 @@
 """Plot mAP curves for YOLO model comparison (first 100 epochs)."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
-
 
 EPOCHS = 100
 OUTPUT_DIR = Path(__file__).resolve().parent / "map_curve_plots"
 
 RESULT_FILES = {
     "YOLO26n": Path(r"E:\CODE\ultralytics-main\runs\detect\train9\results.csv"),
-    "YOLOv12n": Path(
-        r"E:\Desktop\model_compare\yolov12\runs\train\mrs_yolov12n\results.csv"
-    ),
+    "YOLOv12n": Path(r"E:\Desktop\model_compare\yolov12\runs\train\mrs_yolov12n\results.csv"),
     "YOLOv8n": Path(r"E:\CODE\ultralytics-main\runs\detect\train11\results.csv"),
     "YOLO11n": Path(r"E:\CODE\ultralytics-main\runs\multiseed_baseline\baseline_yolo11n_seed04\results.csv"),
     "YOLO11n-MobileNetV3": Path(
@@ -21,9 +20,7 @@ RESULT_FILES = {
         r"\runs\yolo11n_mobilenetv3\results.csv"
     ),
     "YOLOv5n": Path(r"E:\CODE\ultralytics-main\runs\detect\train12\results.csv"),
-    "MDI-YOLO": Path(
-        r"E:\Desktop\model_compare\ultralytics-main\runs\train\mrs_yolov8\results.csv"
-    ),
+    "MDI-YOLO": Path(r"E:\Desktop\model_compare\ultralytics-main\runs\train\mrs_yolov8\results.csv"),
 }
 
 MSA_STAGE1 = Path(
