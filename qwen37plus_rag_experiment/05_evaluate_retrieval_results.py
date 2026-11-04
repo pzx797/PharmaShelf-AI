@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""评价RAG检索召回与模型候选选择结果。
+"""评价RAG检索召回与模型候选选择结果。.
 
 该脚本与04_evaluate_rag_results.py互补：
 - 04脚本使用与直接基线相同的主识别指标；
@@ -17,7 +16,7 @@
 兼容：Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import argparse
 import json
@@ -27,16 +26,13 @@ import sys
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     import pandas as pd
     import yaml
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n原始错误：{exc}")
 
 
 OUTPUT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main\qwen37plus_rag_experiment")
@@ -52,14 +48,14 @@ CONFIRMED_VALUES = {"confirmed", "confirm", "已确认", "确定", "有效"}
 # 通用辅助函数
 # -----------------------------------------------------------------------------
 def now_iso() -> str:
-    """返回带本地时区的ISO时间字符串。"""
+    """返回带本地时区的ISO时间字符串。."""
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
-    """读取YAML配置文件。"""
+def read_yaml(path: Path) -> dict[str, Any]:
+    """读取YAML配置文件。."""
     if not path.exists():
-        raise FileNotFoundError("未找到配置文件：{}".format(path))
+        raise FileNotFoundError(f"未找到配置文件：{path}")
     with path.open("r", encoding="utf-8") as file_obj:
         config = yaml.safe_load(file_obj)
     if not isinstance(config, dict):
@@ -68,7 +64,7 @@ def read_yaml(path: Path) -> Dict[str, Any]:
 
 
 def clean_cell(value: Any) -> str:
-    """将表格值转换为稳定字符串。"""
+    """将表格值转换为稳定字符串。."""
     if value is None:
         return ""
     try:
@@ -82,7 +78,7 @@ def clean_cell(value: Any) -> str:
         return str(value)
     if isinstance(value, float):
         if math.isfinite(value) and value.is_integer():
-            return "{:.0f}".format(value)
+            return f"{value:.0f}"
         return format(value, "g")
     text = str(value).strip()
     if text.casefold() in {"nan", "none", "null"}:
@@ -93,7 +89,7 @@ def clean_cell(value: Any) -> str:
 
 
 def normalize_sku(value: Any) -> str:
-    """标准化SKU编号，消除空格、标点和大小写差异。"""
+    """标准化SKU编号，消除空格、标点和大小写差异。."""
     text = clean_cell(value)
     if not text:
         return ""
@@ -101,8 +97,8 @@ def normalize_sku(value: Any) -> str:
     return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", text)
 
 
-def parse_bool(value: Any) -> Optional[bool]:
-    """解析真值表中的0/1、是/否和布尔文本。"""
+def parse_bool(value: Any) -> bool | None:
+    """解析真值表中的0/1、是/否和布尔文本。."""
     text = clean_cell(value).casefold()
     if text in TRUE_VALUES:
         return True
@@ -111,8 +107,8 @@ def parse_bool(value: Any) -> Optional[bool]:
     return None
 
 
-def parse_candidates(value: Any) -> List[Dict[str, Any]]:
-    """解析预测表中的retrieved_candidates_json字段。"""
+def parse_candidates(value: Any) -> list[dict[str, Any]]:
+    """解析预测表中的retrieved_candidates_json字段。."""
     text = clean_cell(value)
     if not text:
         return []
@@ -125,8 +121,8 @@ def parse_candidates(value: Any) -> List[Dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)]
 
 
-def metric_record(numerator: int, denominator: int) -> Dict[str, Any]:
-    """构造包含分子、分母和比例值的统一指标记录。"""
+def metric_record(numerator: int, denominator: int) -> dict[str, Any]:
+    """构造包含分子、分母和比例值的统一指标记录。."""
     return {
         "numerator": int(numerator),
         "denominator": int(denominator),
@@ -134,15 +130,15 @@ def metric_record(numerator: int, denominator: int) -> Dict[str, Any]:
     }
 
 
-def safe_mean(values: List[float]) -> Optional[float]:
-    """计算非空列表均值。"""
+def safe_mean(values: list[float]) -> float | None:
+    """计算非空列表均值。."""
     if not values:
         return None
     return float(sum(values)) / float(len(values))
 
 
-def first_existing_column(frame: pd.DataFrame, candidates: List[str]) -> Optional[str]:
-    """从候选字段名中返回数据表实际存在的第一个字段。"""
+def first_existing_column(frame: pd.DataFrame, candidates: list[str]) -> str | None:
+    """从候选字段名中返回数据表实际存在的第一个字段。."""
     for candidate in candidates:
         if candidate in frame.columns:
             return candidate
@@ -151,9 +147,9 @@ def first_existing_column(frame: pd.DataFrame, candidates: List[str]) -> Optiona
 
 def resolve_gt_columns(
     gt_df: pd.DataFrame,
-    config: Dict[str, Any],
-) -> Dict[str, Optional[str]]:
-    """根据配置解析真值表字段名。"""
+    config: dict[str, Any],
+) -> dict[str, str | None]:
+    """根据配置解析真值表字段名。."""
     configured = config.get("evaluation", {}).get("column_candidates", {})
     defaults = {
         "gt_sku_id": ["gt_sku_id"],
@@ -164,7 +160,7 @@ def resolve_gt_columns(
         "false_positive": ["false_positive"],
         "gt_drug_name": ["gt_drug_name"],
     }
-    resolved: Dict[str, Optional[str]] = {}
+    resolved: dict[str, str | None] = {}
     for logical_name, fallback in defaults.items():
         candidates = configured.get(logical_name, fallback)
         resolved[logical_name] = first_existing_column(gt_df, list(candidates))
@@ -178,11 +174,11 @@ def attach_ground_truth(
     predictions: pd.DataFrame,
     gt_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """按照输入清单冻结的gt_row_index将预测与人工真值合并。"""
+    """按照输入清单冻结的gt_row_index将预测与人工真值合并。."""
     required_manifest = {"sample_id", "gt_match_status", "gt_row_index"}
     missing_manifest = required_manifest - set(manifest.columns)
     if missing_manifest:
-        raise KeyError("输入清单缺少字段：{}".format(sorted(missing_manifest)))
+        raise KeyError(f"输入清单缺少字段：{sorted(missing_manifest)}")
     if "sample_id" not in predictions.columns:
         raise KeyError("预测结果缺少sample_id字段")
 
@@ -199,54 +195,43 @@ def attach_ground_truth(
         suffixes=("_manifest", ""),
     )
 
-    gt_rows: List[Dict[str, Any]] = []
+    gt_rows: list[dict[str, Any]] = []
     for record in merged.to_dict(orient="records"):
-        gt_record: Dict[str, Any] = {}
+        gt_record: dict[str, Any] = {}
         match_status = clean_cell(record.get("gt_match_status"))
         row_index_text = clean_cell(record.get("gt_row_index"))
         if match_status == "matched" and row_index_text:
             row_index = int(float(row_index_text))
             if row_index < 0 or row_index >= len(gt_df):
-                raise IndexError(
-                    "sample_id={}的gt_row_index越界：{}".format(
-                        record.get("sample_id"), row_index
-                    )
-                )
+                raise IndexError("sample_id={}的gt_row_index越界：{}".format(record.get("sample_id"), row_index))
             gt_series = gt_df.iloc[row_index]
-            gt_record = {
-                "gt__{}".format(column): gt_series.get(column)
-                for column in gt_df.columns
-            }
+            gt_record = {f"gt__{column}": gt_series.get(column) for column in gt_df.columns}
         gt_rows.append(gt_record)
 
     gt_attached = pd.DataFrame(gt_rows)
     return pd.concat([merged.reset_index(drop=True), gt_attached], axis=1)
 
 
-def candidate_skus(candidates: List[Dict[str, Any]]) -> List[str]:
-    """按候选排名提取标准化SKU列表。"""
+def candidate_skus(candidates: list[dict[str, Any]]) -> list[str]:
+    """按候选排名提取标准化SKU列表。."""
     ordered = sorted(
         candidates,
-        key=lambda item: int(item.get("rank", 10 ** 9)),
+        key=lambda item: int(item.get("rank", 10**9)),
     )
-    return [
-        normalize_sku(item.get("sku_id"))
-        for item in ordered
-        if normalize_sku(item.get("sku_id"))
-    ]
+    return [normalize_sku(item.get("sku_id")) for item in ordered if normalize_sku(item.get("sku_id"))]
 
 
-def retrieval_rank(gt_sku: str, candidates: List[Dict[str, Any]]) -> Optional[int]:
-    """返回真值SKU在候选列表中的1起始排名。"""
+def retrieval_rank(gt_sku: str, candidates: list[dict[str, Any]]) -> int | None:
+    """返回真值SKU在候选列表中的1起始排名。."""
     for position, candidate_sku in enumerate(candidate_skus(candidates), start=1):
         if candidate_sku == gt_sku:
             return position
     return None
 
 
-def build_subset_metrics(frame: pd.DataFrame, top_k: int) -> Dict[str, Any]:
-    """计算指定子集的检索与SKU选择指标。"""
-    count = int(len(frame))
+def build_subset_metrics(frame: pd.DataFrame, top_k: int) -> dict[str, Any]:
+    """计算指定子集的检索与SKU选择指标。."""
+    count = len(frame)
     top1 = int(frame["retrieval_hit_at_1"].sum()) if count else 0
     top3 = int(frame["retrieval_hit_at_3"].sum()) if count else 0
     top5 = int(frame["retrieval_hit_at_5"].sum()) if count else 0
@@ -254,14 +239,10 @@ def build_subset_metrics(frame: pd.DataFrame, top_k: int) -> Dict[str, Any]:
     selected_count = int(frame["sku_selected"].sum()) if count else 0
     selected_correct = int(frame["selected_sku_correct"].sum()) if count else 0
     retrieved_count = int(frame["retrieval_hit_at_k"].sum()) if count else 0
-    rerank_correct = int(
-        (frame["retrieval_hit_at_k"] & frame["selected_sku_correct"]).sum()
-    ) if count else 0
+    rerank_correct = int((frame["retrieval_hit_at_k"] & frame["selected_sku_correct"]).sum()) if count else 0
 
     reciprocal_ranks = [
-        1.0 / float(rank)
-        for rank in frame["gt_candidate_rank"].dropna().astype(int).tolist()
-        if rank > 0
+        1.0 / float(rank) for rank in frame["gt_candidate_rank"].dropna().astype(int).tolist() if rank > 0
     ]
 
     return {
@@ -276,18 +257,14 @@ def build_subset_metrics(frame: pd.DataFrame, top_k: int) -> Dict[str, Any]:
         "mean_reciprocal_rank": safe_mean(reciprocal_ranks),
         "sku_selection_coverage": metric_record(selected_count, count),
         "selected_sku_accuracy_all": metric_record(selected_correct, count),
-        "selected_sku_accuracy_when_selected": metric_record(
-            selected_correct, selected_count
-        ),
-        "reranker_accuracy_given_gt_retrieved": metric_record(
-            rerank_correct, retrieved_count
-        ),
+        "selected_sku_accuracy_when_selected": metric_record(selected_correct, selected_count),
+        "reranker_accuracy_given_gt_retrieved": metric_record(rerank_correct, retrieved_count),
     }
 
 
-def flatten_metrics(metrics: Dict[str, Any]) -> pd.DataFrame:
-    """将嵌套指标展开为便于论文整理的CSV。"""
-    rows: List[Dict[str, Any]] = []
+def flatten_metrics(metrics: dict[str, Any]) -> pd.DataFrame:
+    """将嵌套指标展开为便于论文整理的CSV。."""
+    rows: list[dict[str, Any]] = []
 
     def visit(prefix: str, value: Any) -> None:
         if isinstance(value, dict):
@@ -302,7 +279,7 @@ def flatten_metrics(metrics: Dict[str, Any]) -> pd.DataFrame:
                 )
                 return
             for key, child in value.items():
-                child_prefix = "{}.{}".format(prefix, key) if prefix else str(key)
+                child_prefix = f"{prefix}.{key}" if prefix else str(key)
                 visit(child_prefix, child)
         elif isinstance(value, (int, float, str)) or value is None:
             rows.append(
@@ -322,7 +299,7 @@ def flatten_metrics(metrics: Dict[str, Any]) -> pd.DataFrame:
 # 主评价流程
 # -----------------------------------------------------------------------------
 def main() -> int:
-    """合并预测与真值，计算检索和模型选SKU指标。"""
+    """合并预测与真值，计算检索和模型选SKU指标。."""
     parser = argparse.ArgumentParser(description="评价RAG检索与候选选择结果")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
     args = parser.parse_args()
@@ -346,59 +323,31 @@ def main() -> int:
         ("人工真值表", gt_path),
     ]:
         if not path.exists():
-            raise FileNotFoundError("{}不存在：{}".format(label, path))
+            raise FileNotFoundError(f"{label}不存在：{path}")
 
-    manifest = pd.read_csv(
-        manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
-    predictions = pd.read_csv(
-        predictions_path, dtype=str, keep_default_na=False, encoding="utf-8-sig"
-    )
+    manifest = pd.read_csv(manifest_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+    predictions = pd.read_csv(predictions_path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     gt_df = pd.read_excel(gt_path, sheet_name=gt_sheet, engine="openpyxl")
     gt_cols = resolve_gt_columns(gt_df, config)
 
     merged = attach_ground_truth(manifest, predictions, gt_df)
 
     gt_sku_column = "gt__{}".format(gt_cols["gt_sku_id"])
-    label_status_column = (
-        "gt__{}".format(gt_cols["label_status"])
-        if gt_cols.get("label_status")
-        else None
-    )
-    false_positive_column = (
-        "gt__{}".format(gt_cols["false_positive"])
-        if gt_cols.get("false_positive")
-        else None
-    )
-    multi_object_column = (
-        "gt__{}".format(gt_cols["multi_object"])
-        if gt_cols.get("multi_object")
-        else None
-    )
-    readable_column = (
-        "gt__{}".format(gt_cols["readable"])
-        if gt_cols.get("readable")
-        else None
-    )
-    visibility_column = (
-        "gt__{}".format(gt_cols["visibility"])
-        if gt_cols.get("visibility")
-        else None
-    )
+    label_status_column = "gt__{}".format(gt_cols["label_status"]) if gt_cols.get("label_status") else None
+    false_positive_column = "gt__{}".format(gt_cols["false_positive"]) if gt_cols.get("false_positive") else None
+    multi_object_column = "gt__{}".format(gt_cols["multi_object"]) if gt_cols.get("multi_object") else None
+    readable_column = "gt__{}".format(gt_cols["readable"]) if gt_cols.get("readable") else None
+    visibility_column = "gt__{}".format(gt_cols["visibility"]) if gt_cols.get("visibility") else None
 
     merged["gt_sku_normalized"] = merged[gt_sku_column].apply(normalize_sku)
-    merged["pred_sku_normalized"] = merged.get(
-        "pred_sku_id", pd.Series([""] * len(merged))
-    ).apply(normalize_sku)
-    merged["retrieved_candidates"] = merged.get(
-        "retrieved_candidates_json", pd.Series([""] * len(merged))
-    ).apply(parse_candidates)
+    merged["pred_sku_normalized"] = merged.get("pred_sku_id", pd.Series([""] * len(merged))).apply(normalize_sku)
+    merged["retrieved_candidates"] = merged.get("retrieved_candidates_json", pd.Series([""] * len(merged))).apply(
+        parse_candidates
+    )
     merged["gt_candidate_rank"] = merged.apply(
-        lambda row: retrieval_rank(
-            row["gt_sku_normalized"], row["retrieved_candidates"]
-        )
-        if row["gt_sku_normalized"]
-        else None,
+        lambda row: (
+            retrieval_rank(row["gt_sku_normalized"], row["retrieved_candidates"]) if row["gt_sku_normalized"] else None
+        ),
         axis=1,
     )
 
@@ -422,9 +371,7 @@ def main() -> int:
     eligible = merged["gt_sku_normalized"].astype(str).ne("")
     eligible &= merged["gt_match_status"].astype(str).eq("matched")
     if label_status_column:
-        eligible &= merged[label_status_column].apply(
-            lambda value: clean_cell(value).casefold() in CONFIRMED_VALUES
-        )
+        eligible &= merged[label_status_column].apply(lambda value: clean_cell(value).casefold() in CONFIRMED_VALUES)
     if false_positive_column:
         eligible &= merged[false_positive_column].apply(parse_bool).ne(True)
 
@@ -437,7 +384,7 @@ def main() -> int:
     evaluable = merged.loc[merged["retrieval_evaluable"]].copy()
     single_object = evaluable.loc[evaluable["is_single_object"]].copy()
 
-    metrics: Dict[str, Any] = {
+    metrics: dict[str, Any] = {
         "experiment": {
             "name": config["experiment"]["name"],
             "evaluated_at": now_iso(),
@@ -449,10 +396,10 @@ def main() -> int:
             "evaluation_script_version": "1.0",
         },
         "sample_counts": {
-            "manifest_total": int(len(merged)),
+            "manifest_total": len(merged),
             "prediction_ok": int((merged.get("status", "") == "ok").sum()),
-            "retrieval_evaluable_with_gt_sku": int(len(evaluable)),
-            "single_object_retrieval_evaluable": int(len(single_object)),
+            "retrieval_evaluable_with_gt_sku": len(evaluable),
+            "single_object_retrieval_evaluable": len(single_object),
             "excluded_without_gt_sku_or_confirmation": int(len(merged) - len(evaluable)),
         },
         "all_gt_sku_samples": build_subset_metrics(evaluable, top_k),
@@ -462,23 +409,15 @@ def main() -> int:
     }
 
     if readable_column:
-        for value, subset in evaluable.groupby(
-            evaluable[readable_column].apply(clean_cell).replace("", "missing")
-        ):
-            metrics["breakdown_by_readable"][str(value)] = build_subset_metrics(
-                subset, top_k
-            )
+        for value, subset in evaluable.groupby(evaluable[readable_column].apply(clean_cell).replace("", "missing")):
+            metrics["breakdown_by_readable"][str(value)] = build_subset_metrics(subset, top_k)
 
     if visibility_column:
-        for value, subset in evaluable.groupby(
-            evaluable[visibility_column].apply(clean_cell).replace("", "missing")
-        ):
-            metrics["breakdown_by_visibility"][str(value)] = build_subset_metrics(
-                subset, top_k
-            )
+        for value, subset in evaluable.groupby(evaluable[visibility_column].apply(clean_cell).replace("", "missing")):
+            metrics["breakdown_by_visibility"][str(value)] = build_subset_metrics(subset, top_k)
 
     def classify_error(row: pd.Series) -> str:
-        """按照检索失败和候选选择失败划分错误类型。"""
+        """按照检索失败和候选选择失败划分错误类型。."""
         if not bool(row["retrieval_evaluable"]):
             return "not_evaluable"
         if not bool(row["retrieval_hit_at_k"]):
@@ -508,9 +447,7 @@ def main() -> int:
         json.dumps(metrics, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
         encoding="utf-8",
     )
-    flatten_metrics(metrics).to_csv(
-        metrics_csv_path, index=False, encoding="utf-8-sig"
-    )
+    flatten_metrics(metrics).to_csv(metrics_csv_path, index=False, encoding="utf-8-sig")
 
     overall = metrics["all_gt_sku_samples"]
     print("评价完成。")
@@ -525,14 +462,12 @@ def main() -> int:
     ]:
         item = overall[key]
         display = "N/A" if item["value"] is None else "{:.2%}".format(item["value"])
-        print("{}：{}（{}/{}）".format(
-            label, display, item["numerator"], item["denominator"]
-        ))
+        print("{}：{}（{}/{}）".format(label, display, item["numerator"], item["denominator"]))
     mrr = overall["mean_reciprocal_rank"]
-    print("MRR：{}".format("N/A" if mrr is None else "{:.4f}".format(mrr)))
-    print("合并结果：{}".format(merged_path))
-    print("检索指标：{}".format(metrics_path))
-    print("错误样本：{}".format(error_cases_path))
+    print("MRR：{}".format("N/A" if mrr is None else f"{mrr:.4f}"))
+    print(f"合并结果：{merged_path}")
+    print(f"检索指标：{metrics_path}")
+    print(f"错误样本：{error_cases_path}")
     return 0
 
 
@@ -540,5 +475,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print("\n检索评价失败：{}".format(error), file=sys.stderr)
+        print(f"\n检索评价失败：{error}", file=sys.stderr)
         sys.exit(1)
