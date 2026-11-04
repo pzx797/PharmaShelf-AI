@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Prepare the Qwen3.7-Plus direct drug-crop recognition experiment.
 
 This script:
@@ -17,39 +16,31 @@ Dependencies:
 Python compatibility: Python 3.8+
 """
 
-from __future__ import print_function
+from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable
 
 try:
     import pandas as pd
     import yaml
 except ImportError as exc:
-    raise SystemExit(
-        "缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n"
-        "原始错误：{}".format(exc)
-    )
+    raise SystemExit(f"缺少依赖。请先执行：pip install pandas openpyxl pyyaml\n原始错误：{exc}")
 
 
 # -----------------------------------------------------------------------------
 # Fixed experiment settings
 # -----------------------------------------------------------------------------
-CROP_DIR = Path(
-    r"E:\EdgeDownload\ultralytics-main\runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\crops"
-)
+CROP_DIR = Path(r"E:\EdgeDownload\ultralytics-main\runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\crops")
 GT_PATH = Path(
     r"E:\EdgeDownload\ultralytics-main\runs\MSA_SKU_to_MRS_stage2_seed3_best_crops\instances_gt_v1_enriched.xlsx"
 )
-OUTPUT_ROOT = Path(
-    r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment"
-)
+OUTPUT_ROOT = Path(r"E:\EdgeDownload\ultralytics-main\qwen37plus_direct_experiment")
 KB_PATH = Path(r"E:\Desktop\Knowledge_Base\sku_kb_cleaned.xlsx")
 GT_IMAGE_COLUMN = "crop_path"
 
@@ -174,13 +165,13 @@ def normalize_path_text(value: object) -> str:
     return text.casefold()
 
 
-def path_match_keys(path_text: object, crop_dir: Path) -> List[str]:
+def path_match_keys(path_text: object, crop_dir: Path) -> list[str]:
     """Return increasingly broad keys for matching a GT path to an image."""
     normalized = normalize_path_text(path_text)
     if not normalized:
         return []
 
-    keys: List[str] = []
+    keys: list[str] = []
 
     def add(value: str) -> None:
         value = value.strip().casefold()
@@ -202,22 +193,18 @@ def path_match_keys(path_text: object, crop_dir: Path) -> List[str]:
     return keys
 
 
-def discover_images(root: Path, recursive: bool) -> List[Path]:
+def discover_images(root: Path, recursive: bool) -> list[Path]:
     iterator: Iterable[Path]
     iterator = root.rglob("*") if recursive else root.glob("*")
-    images = [
-        path.resolve()
-        for path in iterator
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-    ]
+    images = [path.resolve() for path in iterator if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS]
     return sorted(images, key=lambda p: str(p).casefold())
 
 
 def build_gt_lookup(
     gt_df: pd.DataFrame, image_column: str, crop_dir: Path
-) -> Tuple[Dict[str, List[int]], Dict[int, str]]:
-    lookup: Dict[str, List[int]] = {}
-    normalized_values: Dict[int, str] = {}
+) -> tuple[dict[str, list[int]], dict[int, str]]:
+    lookup: dict[str, list[int]] = {}
+    normalized_values: dict[int, str] = {}
 
     for idx, value in gt_df[image_column].items():
         normalized_values[int(idx)] = normalize_path_text(value)
@@ -230,8 +217,8 @@ def build_gt_lookup(
 def match_gt_row(
     image_path: Path,
     crop_dir: Path,
-    lookup: Dict[str, List[int]],
-) -> Tuple[Optional[int], str, int]:
+    lookup: dict[str, list[int]],
+) -> tuple[int | None, str, int]:
     relative_path = image_path.relative_to(crop_dir.resolve())
     candidate_keys = [
         normalize_path_text(str(image_path)),
@@ -263,12 +250,12 @@ def ensure_required_paths() -> None:
         ("知识库", KB_PATH),
     ]:
         if not path.exists():
-            missing.append("{}不存在：{}".format(label, path))
+            missing.append(f"{label}不存在：{path}")
     if missing:
         raise FileNotFoundError("\n".join(missing))
 
 
-def build_config() -> Dict[str, object]:
+def build_config() -> dict[str, object]:
     return {
         "experiment": {
             "name": RUN_NAME,
@@ -350,7 +337,7 @@ def main() -> int:
     try:
         gt_df = pd.read_excel(GT_PATH, engine="openpyxl")
     except Exception as exc:
-        raise RuntimeError("读取人工真值表失败：{}".format(exc))
+        raise RuntimeError(f"读取人工真值表失败：{exc}")
 
     if GT_IMAGE_COLUMN not in gt_df.columns:
         raise KeyError(
@@ -361,20 +348,18 @@ def main() -> int:
 
     images = discover_images(CROP_DIR, SCAN_SUBDIRECTORIES)
     if not images:
-        raise RuntimeError("裁剪图目录中未找到支持的图片：{}".format(CROP_DIR))
+        raise RuntimeError(f"裁剪图目录中未找到支持的图片：{CROP_DIR}")
 
     gt_lookup, _ = build_gt_lookup(gt_df, GT_IMAGE_COLUMN, CROP_DIR)
 
-    rows: List[Dict[str, object]] = []
+    rows: list[dict[str, object]] = []
     matched_count = 0
     ambiguous_count = 0
     unmatched_count = 0
 
     for number, image_path in enumerate(images, start=1):
         relative_path = image_path.relative_to(CROP_DIR.resolve())
-        gt_index, match_key, candidate_count = match_gt_row(
-            image_path, CROP_DIR, gt_lookup
-        )
+        gt_index, match_key, candidate_count = match_gt_row(image_path, CROP_DIR, gt_lookup)
         if gt_index is not None:
             gt_match_status = "matched"
             matched_count += 1
@@ -390,7 +375,7 @@ def main() -> int:
 
         rows.append(
             {
-                "sample_id": "sample_{:06d}".format(number),
+                "sample_id": f"sample_{number:06d}",
                 "crop_path": str(image_path),
                 "crop_relative_path": str(relative_path),
                 "crop_filename": image_path.name,
@@ -440,18 +425,16 @@ def main() -> int:
     )
 
     print("\n准备完成。")
-    print("实验目录：{}".format(RUN_DIR))
-    print("裁剪图数量：{}".format(len(images)))
-    print("成功匹配真值：{}".format(matched_count))
-    print("匹配歧义：{}".format(ambiguous_count))
-    print("未匹配真值：{}".format(unmatched_count))
-    print("配置文件：{}".format(config_path))
-    print("输入清单：{}".format(manifest_path))
+    print(f"实验目录：{RUN_DIR}")
+    print(f"裁剪图数量：{len(images)}")
+    print(f"成功匹配真值：{matched_count}")
+    print(f"匹配歧义：{ambiguous_count}")
+    print(f"未匹配真值：{unmatched_count}")
+    print(f"配置文件：{config_path}")
+    print(f"输入清单：{manifest_path}")
 
     if ambiguous_count or unmatched_count:
-        print(
-            "\n注意：存在未唯一匹配真值的图片。API推理仍可执行，但评价脚本会将这些样本标记为不可评价。"
-        )
+        print("\n注意：存在未唯一匹配真值的图片。API推理仍可执行，但评价脚本会将这些样本标记为不可评价。")
 
     print("\n下一步运行：python 02_run_qwen37plus_direct.py")
     return 0
@@ -461,5 +444,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print("\n准备失败：{}".format(error), file=sys.stderr)
+        print(f"\n准备失败：{error}", file=sys.stderr)
         sys.exit(1)
