@@ -28,11 +28,11 @@ Cropping rules:
        they are left as manual annotation fields in instances.csv.
 """
 
-from pathlib import Path
 import csv
 import glob
-import cv2
+from pathlib import Path
 
+import cv2
 
 # =========================
 # Basic configuration
@@ -57,9 +57,8 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def read_source_from_args_yaml(predict_dir: Path):
-    """
-    Try to read original source path from Ultralytics args.yaml.
-    This is only a fallback. In this script, ORIGINAL_IMAGES_DIR is manually specified first.
+    """Try to read original source path from Ultralytics args.yaml. This is only a fallback. In this script,
+    ORIGINAL_IMAGES_DIR is manually specified first.
     """
     args_yaml = predict_dir / "args.yaml"
     if not args_yaml.exists():
@@ -67,14 +66,15 @@ def read_source_from_args_yaml(predict_dir: Path):
 
     try:
         import yaml
-        with open(args_yaml, "r", encoding="utf-8") as f:
+
+        with open(args_yaml, encoding="utf-8") as f:
             args = yaml.safe_load(f)
         source = args.get("source", None)
         if source:
             return Path(str(source))
     except Exception:
         # Fallback: simple line parsing
-        with open(args_yaml, "r", encoding="utf-8") as f:
+        with open(args_yaml, encoding="utf-8") as f:
             for line in f:
                 if line.strip().startswith("source:"):
                     source = line.split("source:", 1)[1].strip().strip("'").strip('"')
@@ -85,12 +85,8 @@ def read_source_from_args_yaml(predict_dir: Path):
 
 
 def collect_images_from_source(source):
-    """
-    Collect original images from:
-    - a directory
-    - a single image file
-    - a txt file containing image paths
-    - a glob pattern
+    """Collect original images from: - a directory - a single image file - a txt file containing image paths - a glob
+    pattern.
     """
     image_paths = []
 
@@ -108,7 +104,7 @@ def collect_images_from_source(source):
         image_paths.append(source)
 
     elif source.is_file() and source.suffix.lower() == ".txt":
-        with open(source, "r", encoding="utf-8") as f:
+        with open(source, encoding="utf-8") as f:
             for line in f:
                 p = Path(line.strip())
                 if p.exists() and p.suffix.lower() in IMAGE_SUFFIXES:
@@ -125,10 +121,10 @@ def collect_images_from_source(source):
 
 
 def build_image_index(image_paths):
-    """
-    Build index by image stem.
-    Example:
-        IMG_001.jpg -> key: IMG_001
+    """Build index by image stem.
+
+    Examples:
+        IMG_001.jpg -> key: IMG_001.
     """
     index = {}
     duplicate_stems = set()
@@ -148,13 +144,10 @@ def build_image_index(image_paths):
 
 
 def get_original_image_index():
-    """
-    Priority:
-    1. ORIGINAL_IMAGES_DIR manually configured
-    2. source path from predict_dir/args.yaml
-    3. fallback to images in PREDICT_DIR
+    """Priority: 1. ORIGINAL_IMAGES_DIR manually configured 2. source path from predict_dir/args.yaml 3. fallback to
+    images in PREDICT_DIR.
 
-    Note:
+    Notes:
         fallback may use visualization images with boxes drawn on them.
         Since ORIGINAL_IMAGES_DIR is specified, normal execution will use original clean test images.
     """
@@ -180,9 +173,7 @@ def get_original_image_index():
 
 
 def yolo_xywhn_to_xyxy_pixels(xc, yc, bw, bh, img_w, img_h):
-    """
-    Convert normalized YOLO xywh bbox to pixel xyxy bbox.
-    """
+    """Convert normalized YOLO xywh bbox to pixel xyxy bbox."""
     x1 = (xc - bw / 2.0) * img_w
     y1 = (yc - bh / 2.0) * img_h
     x2 = (xc + bw / 2.0) * img_w
@@ -191,27 +182,23 @@ def yolo_xywhn_to_xyxy_pixels(xc, yc, bw, bh, img_w, img_h):
 
 
 def add_padding_and_clip(x1, y1, x2, y2, img_w, img_h, padding_ratio=0.05):
-    """
-    Add padding and clip bbox to image boundary.
-    """
+    """Add padding and clip bbox to image boundary."""
     box_w = x2 - x1
     box_h = y2 - y1
 
     pad_x = box_w * padding_ratio
     pad_y = box_h * padding_ratio
 
-    x1p = max(0, int(round(x1 - pad_x)))
-    y1p = max(0, int(round(y1 - pad_y)))
-    x2p = min(img_w, int(round(x2 + pad_x)))
-    y2p = min(img_h, int(round(y2 + pad_y)))
+    x1p = max(0, round(x1 - pad_x))
+    y1p = max(0, round(y1 - pad_y))
+    x2p = min(img_w, round(x2 + pad_x))
+    y2p = min(img_h, round(y2 + pad_y))
 
     return x1p, y1p, x2p, y2p
 
 
 def parse_prediction_line(line):
-    """
-    Ultralytics save_txt + save_conf format:
-        class x_center y_center width height confidence
+    """Ultralytics save_txt + save_conf format: class x_center y_center width height confidence.
 
     Returns:
         cls_id, xc, yc, bw, bh, conf
@@ -250,9 +237,7 @@ def main():
 
     image_index = get_original_image_index()
     if not image_index:
-        raise RuntimeError(
-            "No source images found. Please check ORIGINAL_IMAGES_DIR."
-        )
+        raise RuntimeError("No source images found. Please check ORIGINAL_IMAGES_DIR.")
 
     label_files = sorted(labels_dir.glob("*.txt"))
 
@@ -274,27 +259,31 @@ def main():
 
         if image_path is None:
             skipped_missing_image += 1
-            skipped_rows.append({
-                "source_image_stem": image_stem,
-                "label_file": str(label_file),
-                "reason": "missing_original_image",
-                "raw_line": ""
-            })
+            skipped_rows.append(
+                {
+                    "source_image_stem": image_stem,
+                    "label_file": str(label_file),
+                    "reason": "missing_original_image",
+                    "raw_line": "",
+                }
+            )
             continue
 
         img = cv2.imread(str(image_path))
         if img is None:
-            skipped_rows.append({
-                "source_image_stem": image_stem,
-                "label_file": str(label_file),
-                "reason": "failed_to_read_image",
-                "raw_line": ""
-            })
+            skipped_rows.append(
+                {
+                    "source_image_stem": image_stem,
+                    "label_file": str(label_file),
+                    "reason": "failed_to_read_image",
+                    "raw_line": "",
+                }
+            )
             continue
 
         img_h, img_w = img.shape[:2]
 
-        with open(label_file, "r", encoding="utf-8") as f:
+        with open(label_file, encoding="utf-8") as f:
             lines = [line.strip() for line in f if line.strip()]
 
         box_order = 0
@@ -305,67 +294,75 @@ def main():
             parsed = parse_prediction_line(raw_line)
             if parsed is None:
                 skipped_invalid += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "invalid_label_format_or_missing_conf",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "invalid_label_format_or_missing_conf",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             cls_id, xc, yc, bw, bh, conf = parsed
 
             if conf < CONF_THRES:
                 skipped_low_conf += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": f"low_conf_less_than_{CONF_THRES}",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": f"low_conf_less_than_{CONF_THRES}",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             # Basic normalized bbox validation
             if bw <= 0 or bh <= 0:
                 skipped_invalid += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "non_positive_bbox_width_or_height",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "non_positive_bbox_width_or_height",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             x1, y1, x2, y2 = yolo_xywhn_to_xyxy_pixels(xc, yc, bw, bh, img_w, img_h)
 
             # Clip original bbox first for validation
-            x1_clip = max(0, min(img_w, int(round(x1))))
-            y1_clip = max(0, min(img_h, int(round(y1))))
-            x2_clip = max(0, min(img_w, int(round(x2))))
-            y2_clip = max(0, min(img_h, int(round(y2))))
+            x1_clip = max(0, min(img_w, round(x1)))
+            y1_clip = max(0, min(img_h, round(y1)))
+            x2_clip = max(0, min(img_w, round(x2)))
+            y2_clip = max(0, min(img_h, round(y2)))
 
             if x1_clip >= x2_clip or y1_clip >= y2_clip:
                 skipped_invalid += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "invalid_pixel_bbox_after_clipping",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "invalid_pixel_bbox_after_clipping",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
-            x1p, y1p, x2p, y2p = add_padding_and_clip(
-                x1_clip, y1_clip, x2_clip, y2_clip, img_w, img_h, PADDING_RATIO
-            )
+            x1p, y1p, x2p, y2p = add_padding_and_clip(x1_clip, y1_clip, x2_clip, y2_clip, img_w, img_h, PADDING_RATIO)
 
             if x1p >= x2p or y1p >= y2p:
                 skipped_invalid += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "invalid_padded_bbox",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "invalid_padded_bbox",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             box_order += 1
@@ -377,71 +374,72 @@ def main():
 
             if crop_img.size == 0:
                 skipped_invalid += 1
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "empty_crop",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "empty_crop",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             ok = cv2.imwrite(str(crop_path), crop_img)
             if not ok:
-                skipped_rows.append({
-                    "source_image_stem": image_stem,
-                    "label_file": str(label_file),
-                    "reason": "failed_to_save_crop",
-                    "raw_line": raw_line
-                })
+                skipped_rows.append(
+                    {
+                        "source_image_stem": image_stem,
+                        "label_file": str(label_file),
+                        "reason": "failed_to_save_crop",
+                        "raw_line": raw_line,
+                    }
+                )
                 continue
 
             total_crops += 1
 
             # Keep manual labeling fields blank for later annotation.
-            instance_rows.append({
-                "crop_id": crop_id,
-                "box_order": box_order,
-                "source_image": str(image_path),
-                "source_image_name": image_path.name,
-                "label_file": str(label_file),
-                "crop_path": str(crop_path),
-                "class_id": cls_id,
-                "confidence": round(conf, 6),
-
-                # YOLO normalized bbox
-                "yolo_x_center": xc,
-                "yolo_y_center": yc,
-                "yolo_width": bw,
-                "yolo_height": bh,
-
-                # Original pixel bbox without padding
-                "bbox_x1": x1_clip,
-                "bbox_y1": y1_clip,
-                "bbox_x2": x2_clip,
-                "bbox_y2": y2_clip,
-
-                # Padded pixel bbox used for crop
-                "crop_x1": x1p,
-                "crop_y1": y1p,
-                "crop_x2": x2p,
-                "crop_y2": y2p,
-                "padding_ratio": PADDING_RATIO,
-
-                # Manual SKU ground-truth annotation fields
-                "gt_sku_id": "",
-                "gt_drug_name": "",
-                "gt_spec": "",
-                "gt_manufacturer": "",
-                "gt_barcode_or_approval_no": "",
-
-                # Manual quality/status fields
-                "label_status": "",      # confirmed / uncertain / false_positive / invalid
-                "visibility": "",        # complete / partial / occluded / severe_occluded
-                "readable": "",          # yes / no / partly
-                "multi_object": "",      # yes / no
-                "false_positive": "",    # yes / no
-                "note": ""
-            })
+            instance_rows.append(
+                {
+                    "crop_id": crop_id,
+                    "box_order": box_order,
+                    "source_image": str(image_path),
+                    "source_image_name": image_path.name,
+                    "label_file": str(label_file),
+                    "crop_path": str(crop_path),
+                    "class_id": cls_id,
+                    "confidence": round(conf, 6),
+                    # YOLO normalized bbox
+                    "yolo_x_center": xc,
+                    "yolo_y_center": yc,
+                    "yolo_width": bw,
+                    "yolo_height": bh,
+                    # Original pixel bbox without padding
+                    "bbox_x1": x1_clip,
+                    "bbox_y1": y1_clip,
+                    "bbox_x2": x2_clip,
+                    "bbox_y2": y2_clip,
+                    # Padded pixel bbox used for crop
+                    "crop_x1": x1p,
+                    "crop_y1": y1p,
+                    "crop_x2": x2p,
+                    "crop_y2": y2p,
+                    "padding_ratio": PADDING_RATIO,
+                    # Manual SKU ground-truth annotation fields
+                    "gt_sku_id": "",
+                    "gt_drug_name": "",
+                    "gt_spec": "",
+                    "gt_manufacturer": "",
+                    "gt_barcode_or_approval_no": "",
+                    # Manual quality/status fields
+                    "label_status": "",  # confirmed / uncertain / false_positive / invalid
+                    "visibility": "",  # complete / partial / occluded / severe_occluded
+                    "readable": "",  # yes / no / partly
+                    "multi_object": "",  # yes / no
+                    "false_positive": "",  # yes / no
+                    "note": "",
+                }
+            )
 
     # Write instances.csv
     if instance_rows:
@@ -453,11 +451,22 @@ def main():
         # Create an empty file with basic header if no valid crops
         with open(INSTANCES_CSV, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "crop_id", "box_order", "source_image", "crop_path",
-                "class_id", "confidence", "gt_sku_id", "gt_drug_name",
-                "gt_spec", "gt_manufacturer", "label_status", "note"
-            ])
+            writer.writerow(
+                [
+                    "crop_id",
+                    "box_order",
+                    "source_image",
+                    "crop_path",
+                    "class_id",
+                    "confidence",
+                    "gt_sku_id",
+                    "gt_drug_name",
+                    "gt_spec",
+                    "gt_manufacturer",
+                    "label_status",
+                    "note",
+                ]
+            )
 
     # Write skipped_predictions.csv
     if skipped_rows:
