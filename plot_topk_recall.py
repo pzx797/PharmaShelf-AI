@@ -9,15 +9,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_METRICS = (
-    PROJECT_ROOT
-    / "qwen37plus_rag_experiment"
-    / "runs"
-    / "qwen37plus_rag_v1"
-    / "evaluation"
-    / "retrieval_metrics.json"
+    PROJECT_ROOT / "qwen37plus_rag_experiment" / "runs" / "qwen37plus_rag_v1" / "evaluation" / "retrieval_metrics.json"
 )
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "topk_recall_plot"
 
@@ -62,9 +56,7 @@ def load_recall_values(metrics_path: Path) -> tuple[list[int], list[float]]:
     return top_k, recalls
 
 
-def plot_recall(
-    top_k: list[int], recalls: list[float], output_dir: Path, metrics_path: Path
-) -> None:
+def plot_recall(top_k: list[int], recalls: list[float], output_dir: Path, metrics_path: Path) -> None:
     """Create publication-ready PNG, PDF and SVG figures."""
     configure_fonts()
     fig, ax = plt.subplots(figsize=(7.2, 4.8), dpi=160)

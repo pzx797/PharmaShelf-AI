@@ -2,7 +2,7 @@
 根据知识库中的SKU信息，补全实例级真值表中的：
 - gt_spec
 - gt_manufacturer
-- gt_barcode
+- gt_barcode.
 
 补全原则：
 1.仅处理gt_sku_id非空的记录。
@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
-
 
 # =========================
 # 1.路径配置
@@ -85,8 +84,8 @@ COLUMN_CANDIDATES = {
         "gt_sku_id",
     ],
     "spec": [
-        "specification",       # 优先使用清洗后的规格字段
-        "raw_specification",   # 清洗后字段不存在时作为备选
+        "specification",  # 优先使用清洗后的规格字段
+        "raw_specification",  # 清洗后字段不存在时作为备选
         "spec",
         "规格",
         "药品规格",
@@ -121,7 +120,7 @@ TARGET_COLUMNS = {
 
 
 def clean_text(value: object) -> str:
-    """将空值统一为空字符串，并清理首尾空格。"""
+    """将空值统一为空字符串，并清理首尾空格。."""
     if value is None:
         return ""
 
@@ -133,9 +132,7 @@ def clean_text(value: object) -> str:
 
 
 def normalize_sku(value: object) -> str:
-    """
-    将SKU统一为字符串，避免Excel把整数SKU读取成2001057.0。
-    不对SKU补零，因为无法确定知识库是否使用前导零。
+    """将SKU统一为字符串，避免Excel把整数SKU读取成2001057.0。 不对SKU补零，因为无法确定知识库是否使用前导零。.
     """
     text = clean_text(value)
     if not text:
@@ -147,7 +144,7 @@ def normalize_sku(value: object) -> str:
 
 
 def normalize_column_name(name: object) -> str:
-    """用于宽松匹配表头。"""
+    """用于宽松匹配表头。."""
     text = clean_text(name).lower()
     return re.sub(r"[\s_\-（）()\[\]【】/\\]+", "", text)
 
@@ -157,11 +154,8 @@ def find_column(
     candidates: Iterable[str],
     field_name: str,
 ) -> str:
-    """从候选表头中自动查找实际列名。"""
-    normalized_actual = {
-        normalize_column_name(column): str(column)
-        for column in columns
-    }
+    """从候选表头中自动查找实际列名。."""
+    normalized_actual = {normalize_column_name(column): str(column) for column in columns}
 
     for candidate in candidates:
         normalized_candidate = normalize_column_name(candidate)
@@ -177,9 +171,7 @@ def find_column(
 
 
 def detect_excel_file(path: Path) -> bool:
-    """
-    根据文件头判断是否为Excel工作簿。
-    兼容“扩展名是.csv，但内部实际是.xlsx”的情况。
+    """根据文件头判断是否为Excel工作簿。 兼容“扩展名是.csv，但内部实际是.xlsx”的情况。.
     """
     with path.open("rb") as file:
         signature = file.read(8)
@@ -196,7 +188,7 @@ def detect_excel_file(path: Path) -> bool:
 
 
 def read_table(path: Path) -> pd.DataFrame:
-    """自动读取Excel或真正的CSV，并尽量将字段保持为字符串。"""
+    """自动读取Excel或真正的CSV，并尽量将字段保持为字符串。."""
     if not path.exists():
         raise FileNotFoundError(f"文件不存在：{path}")
 
@@ -222,13 +214,11 @@ def read_table(path: Path) -> pd.DataFrame:
         except UnicodeDecodeError as exc:
             last_error = exc
 
-    raise RuntimeError(
-        f"无法读取CSV文件：{path}。最后一次错误：{last_error}"
-    )
+    raise RuntimeError(f"无法读取CSV文件：{path}。最后一次错误：{last_error}")
 
 
 def unique_nonempty_values(series: pd.Series) -> list[str]:
-    """获取某列去空、去重后的值，并保持原始出现顺序。"""
+    """获取某列去空、去重后的值，并保持原始出现顺序。."""
     values: list[str] = []
     seen: set[str] = set()
 
@@ -250,9 +240,7 @@ def main() -> None:
 
     # 检查真值表关键字段
     if "gt_sku_id" not in gt_df.columns:
-        raise KeyError(
-            "真值表中缺少gt_sku_id列，无法按SKU补全字段。"
-        )
+        raise KeyError("真值表中缺少gt_sku_id列，无法按SKU补全字段。")
 
     # 自动识别知识库字段
     kb_sku_col = find_column(
@@ -303,9 +291,7 @@ def main() -> None:
     for sku, group in kb_df.groupby("_normalized_sku", sort=False):
         field_values = {
             "spec": unique_nonempty_values(group[kb_spec_col]),
-            "manufacturer": unique_nonempty_values(
-                group[kb_manufacturer_col]
-            ),
+            "manufacturer": unique_nonempty_values(group[kb_manufacturer_col]),
             "barcode": unique_nonempty_values(group[kb_barcode_col]),
         }
 
@@ -351,11 +337,7 @@ def main() -> None:
         if not sku:
             continue
 
-        crop_id = (
-            clean_text(row["crop_id"])
-            if crop_id_exists
-            else str(index + 2)
-        )
+        crop_id = clean_text(row["crop_id"]) if crop_id_exists else str(index + 2)
 
         if REQUIRE_CONFIRMED and status_exists:
             label_status = clean_text(row["label_status"]).lower()
@@ -366,9 +348,7 @@ def main() -> None:
                         "excel_row": str(index + 2),
                         "crop_id": crop_id,
                         "gt_sku_id": sku,
-                        "label_status": clean_text(
-                            row["label_status"]
-                        ),
+                        "label_status": clean_text(row["label_status"]),
                     }
                 )
                 continue
@@ -390,9 +370,7 @@ def main() -> None:
         row_filled = False
 
         for source_field, target_col in TARGET_COLUMNS.items():
-            kb_value = clean_text(
-                kb_mapping[sku].get(source_field, "")
-            )
+            kb_value = clean_text(kb_mapping[sku].get(source_field, ""))
             current_value = clean_text(row[target_col])
 
             # 知识库字段为空或存在冲突时，不补全
@@ -419,11 +397,7 @@ def main() -> None:
                     "field": target_col,
                     "current_gt_value": current_value,
                     "knowledge_base_value": kb_value,
-                    "action": (
-                        "overwritten"
-                        if OVERWRITE_EXISTING
-                        else "kept_original"
-                    ),
+                    "action": ("overwritten" if OVERWRITE_EXISTING else "kept_original"),
                 }
             )
 
@@ -432,9 +406,7 @@ def main() -> None:
                 row_filled = True
 
         if ADD_SOURCE_COLUMN and row_filled:
-            current_source = clean_text(
-                gt_df.at[index, SOURCE_COLUMN]
-            )
+            current_source = clean_text(gt_df.at[index, SOURCE_COLUMN])
 
             if not current_source:
                 gt_df.at[index, SOURCE_COLUMN] = SOURCE_TEXT
@@ -556,26 +528,17 @@ def main() -> None:
     print(f"符合处理条件的实例数：{eligible_rows}")
     print(f"匹配到知识库SKU的实例数：{matched_rows}")
     print(f"补全gt_spec：{filled_counts['gt_spec']}个")
-    print(
-        "补全gt_manufacturer："
-        f"{filled_counts['gt_manufacturer']}个"
-    )
+    print(f"补全gt_manufacturer：{filled_counts['gt_manufacturer']}个")
     print(f"补全gt_barcode：{filled_counts['gt_barcode']}个")
     print(f"未匹配SKU：{len(unmatched_records)}个")
     print(f"知识库字段冲突：{len(conflict_records)}个")
     print(f"已有值与知识库不一致：{len(mismatch_records)}个")
 
     if conflict_records:
-        print(
-            "\n警告：知识库中存在同一SKU对应多个规格、厂家"
-            "或条码的情况，冲突字段未自动补全。"
-        )
+        print("\n警告：知识库中存在同一SKU对应多个规格、厂家或条码的情况，冲突字段未自动补全。")
 
     if mismatch_records and not OVERWRITE_EXISTING:
-        print(
-            "提示：已有真值与知识库不一致时，脚本保留了原值。"
-            "请查看value_mismatches工作表。"
-        )
+        print("提示：已有真值与知识库不一致时，脚本保留了原值。请查看value_mismatches工作表。")
 
 
 if __name__ == "__main__":

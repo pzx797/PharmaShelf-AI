@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
@@ -21,7 +21,9 @@ __all__ = (
     "CIB",
     "DFL",
     "ELAN1",
+    "MAFF",
     "PSA",
+    "SOSE",
     "SPP",
     "SPPELAN",
     "SPPF",
@@ -45,7 +47,6 @@ __all__ = (
     "HGBlock",
     "HGStem",
     "ImagePoolingAttn",
-    "MAFF",
     "MAFFLite",
     "Proto",
     "RepC3",
@@ -53,7 +54,6 @@ __all__ = (
     "RepVGGDW",
     "ResNetLayer",
     "SCDown",
-    "SOSE",
     "SOSELite",
     "TorchVision",
 )
@@ -80,7 +80,9 @@ class SOSE(nn.Module):
         self.local_enhance = nn.Sequential(Conv(c_out, c_out, k=3, g=c_out), Conv(c_out, c_out, k=1))
 
         # CBAM-style channel and spatial attention.
-        self.channel_mlp = nn.Sequential(nn.Conv2d(c_out, hidden, 1, bias=False), nn.ReLU(inplace=True), nn.Conv2d(hidden, c_out, 1, bias=False))
+        self.channel_mlp = nn.Sequential(
+            nn.Conv2d(c_out, hidden, 1, bias=False), nn.ReLU(inplace=True), nn.Conv2d(hidden, c_out, 1, bias=False)
+        )
         self.spatial_attention = nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False)
 
         self.residual_proj = Conv(c_out, c_out, k=1)
@@ -172,8 +174,7 @@ class MAFF(nn.Module):
         fused = self.fuse(fused)
 
         channel_attn = torch.sigmoid(
-            self.channel_mlp(F.adaptive_avg_pool2d(fused, 1))
-            + self.channel_mlp(F.adaptive_max_pool2d(fused, 1))
+            self.channel_mlp(F.adaptive_avg_pool2d(fused, 1)) + self.channel_mlp(F.adaptive_max_pool2d(fused, 1))
         )
         channel_refined = fused * channel_attn
         spatial_attn = torch.sigmoid(

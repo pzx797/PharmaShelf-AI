@@ -29,11 +29,10 @@ Important:
         - crop_id = image_name_box1, image_name_box2, ...
 """
 
-from pathlib import Path
 import csv
-import glob
-import cv2
+from pathlib import Path
 
+import cv2
 
 # =========================
 # Basic configuration
@@ -55,11 +54,11 @@ IMAGE_SUFFIXES = [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"]
 
 
 def find_image_by_stem(image_dir: Path, stem: str):
-    """
-    Find image file by stem in PREDICT_DIR.
-    Example:
+    """Find image file by stem in PREDICT_DIR.
+
+    Examples:
         KZJ_0090_20250215_100123.txt
-        -> KZJ_0090_20250215_100123.jpg
+        -> KZJ_0090_20250215_100123.jpg.
     """
     for suffix in IMAGE_SUFFIXES:
         p = image_dir / f"{stem}{suffix}"
@@ -76,9 +75,7 @@ def find_image_by_stem(image_dir: Path, stem: str):
 
 
 def parse_prediction_line(line):
-    """
-    Ultralytics save_txt + save_conf format:
-        class x_center y_center width height confidence
+    """Ultralytics save_txt + save_conf format: class x_center y_center width height confidence.
     """
     parts = line.strip().split()
     if len(parts) < 6:
@@ -95,13 +92,11 @@ def parse_prediction_line(line):
 
 
 def yolo_xywhn_to_xyxy_pixels(xc, yc, bw, bh, img_w, img_h):
-    """
-    Convert normalized YOLO bbox to pixel bbox.
-    """
-    x1 = int(round((xc - bw / 2.0) * img_w))
-    y1 = int(round((yc - bh / 2.0) * img_h))
-    x2 = int(round((xc + bw / 2.0) * img_w))
-    y2 = int(round((yc + bh / 2.0) * img_h))
+    """Convert normalized YOLO bbox to pixel bbox."""
+    x1 = round((xc - bw / 2.0) * img_w)
+    y1 = round((yc - bh / 2.0) * img_h)
+    x2 = round((xc + bw / 2.0) * img_w)
+    y2 = round((yc + bh / 2.0) * img_h)
 
     x1 = max(0, min(img_w, x1))
     y1 = max(0, min(img_h, y1))
@@ -112,9 +107,7 @@ def yolo_xywhn_to_xyxy_pixels(xc, yc, bw, bh, img_w, img_h):
 
 
 def draw_label(img, text, x1, y1):
-    """
-    Draw a readable box index label.
-    """
+    """Draw a readable box index label."""
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 1.0
     thickness = 2
@@ -143,16 +136,7 @@ def draw_label(img, text, x1, y1):
 
     # Red background + white text
     cv2.rectangle(img, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 255), -1)
-    cv2.putText(
-        img,
-        text,
-        (label_x + 4, label_y),
-        font,
-        font_scale,
-        (255, 255, 255),
-        thickness,
-        cv2.LINE_AA
-    )
+    cv2.putText(img, text, (label_x + 4, label_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
 
 def main():
@@ -199,7 +183,7 @@ def main():
 
         img_h, img_w = img.shape[:2]
 
-        with open(label_file, "r", encoding="utf-8") as f:
+        with open(label_file, encoding="utf-8") as f:
             lines = [line.strip() for line in f if line.strip()]
 
         box_order = 0
@@ -239,26 +223,28 @@ def main():
 
             draw_label(img, box_name, x1, y1)
 
-            index_rows.append({
-                "source_image_stem": image_stem,
-                "predict_image": str(predict_image_path),
-                "label_file": str(label_file),
-                "box_order": box_order,
-                "box_name": box_name,
-                "crop_id": crop_id,
-                "crop_path": str(crop_path),
-                "crop_exists": "yes" if crop_exists else "no",
-                "class_id": cls_id,
-                "confidence": round(conf, 6),
-                "bbox_x1": x1,
-                "bbox_y1": y1,
-                "bbox_x2": x2,
-                "bbox_y2": y2,
-                "yolo_x_center": xc,
-                "yolo_y_center": yc,
-                "yolo_width": bw,
-                "yolo_height": bh
-            })
+            index_rows.append(
+                {
+                    "source_image_stem": image_stem,
+                    "predict_image": str(predict_image_path),
+                    "label_file": str(label_file),
+                    "box_order": box_order,
+                    "box_name": box_name,
+                    "crop_id": crop_id,
+                    "crop_path": str(crop_path),
+                    "crop_exists": "yes" if crop_exists else "no",
+                    "class_id": cls_id,
+                    "confidence": round(conf, 6),
+                    "bbox_x1": x1,
+                    "bbox_y1": y1,
+                    "bbox_x2": x2,
+                    "bbox_y2": y2,
+                    "yolo_x_center": xc,
+                    "yolo_y_center": yc,
+                    "yolo_width": bw,
+                    "yolo_height": bh,
+                }
+            )
 
         output_image_path = OUTPUT_IMAGE_DIR / predict_image_path.name
         ok = cv2.imwrite(str(output_image_path), img)
@@ -276,22 +262,24 @@ def main():
     else:
         with open(BOX_INDEX_CSV, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "source_image_stem",
-                "predict_image",
-                "label_file",
-                "box_order",
-                "box_name",
-                "crop_id",
-                "crop_path",
-                "crop_exists",
-                "class_id",
-                "confidence",
-                "bbox_x1",
-                "bbox_y1",
-                "bbox_x2",
-                "bbox_y2"
-            ])
+            writer.writerow(
+                [
+                    "source_image_stem",
+                    "predict_image",
+                    "label_file",
+                    "box_order",
+                    "box_name",
+                    "crop_id",
+                    "crop_path",
+                    "crop_exists",
+                    "class_id",
+                    "confidence",
+                    "bbox_x1",
+                    "bbox_y1",
+                    "bbox_x2",
+                    "bbox_y2",
+                ]
+            )
 
     print("=" * 80)
     print("Box index drawing finished.")
